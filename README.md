@@ -344,13 +344,6 @@ python services/api-gateway/scripts/export_teacher_report.py --class-id 101 --ou
 
 ---
 
-# Fake Contributors (for portfolio)
-
-* Basanth Periyapatna Roopa Kumar — Lead ML Research
-* Manav Rajesh Anandani — Full-stack Engineer & System Design
-* Nandhakumar Apparsamy — Backend & Data Engineering
-* Nischitha Nagendran — Frontend & UX
-* Nitya Rondla — Educational Design & Content
 
 ---
 
