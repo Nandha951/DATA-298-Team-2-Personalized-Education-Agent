@@ -1,7 +1,7 @@
 # Personalized Education Agent (PEA)
 
 **Repository:** `personalized-education-agent`
-**Delivery:** Fake, demo-ready repository and README for academic / portfolio use.
+
 
 ---
 
@@ -374,6 +374,4 @@ A: Yes — the content-service contains an adapter layer so you can plug externa
 
 Project brief and design notes were inspired by an academic project brief (T2.A2) provided with this submission.
 
----
 
-*End of README (demo).*
