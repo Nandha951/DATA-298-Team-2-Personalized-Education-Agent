@@ -1,0 +1,294 @@
+/* styles/global.css */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f9f9f9;
+}
+
+.App {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Navbar */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 2rem;
+    background-color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    margin-bottom: 2rem;
+    border-radius: 8px;
+}
+
+.logo a {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: #2196F3;
+    text-decoration: none;
+}
+
+.nav-links {
+    list-style: none;
+    display: flex;
+    gap: 20px;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+}
+
+.nav-links a:hover {
+    color: #2196F3;
+}
+
+/* Milestone Card */
+.milestone-card {
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 15px 0;
+    background: white;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.milestone-card.active {
+    border-color: #4CAF50;
+    background-color: #f1f8f4;
+}
+
+.milestone-card.locked {
+    opacity: 0.6;
+    pointer-events: none;
+    background-color: #f5f5f5;
+}
+
+.milestone-number {
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    width: 30px;
+    height: 30px;
+    background: #2196F3;
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-weight: bold;
+}
+
+.badge {
+    display: inline-block;
+    background: #ff9800;
+    color: white;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 10px;
+}
+
+/* Quiz Options */
+.option-button {
+    width: 100%;
+    padding: 15px;
+    margin: 10px 0;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: left;
+    font-size: 1rem;
+    color: #333;
+    /* Default text color */
+}
+
+.option-button:hover:not(:disabled) {
+    border-color: #2196F3;
+    background-color: #f5f9ff;
+    transform: translateY(-2px);
+}
+
+.option-button.selected {
+    border-color: #2196F3;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+    /* Dark blue text */
+    font-weight: 500;
+}
+
+.option-button.correct {
+    border-color: #4CAF50;
+    background-color: #e8f5e9;
+    /* Light green bg */
+    color: #1b5e20;
+    /* Dark green text for contrast */
+    font-weight: bold;
+}
+
+.option-button.incorrect {
+    border-color: #f44336;
+    background-color: #ffebee;
+    /* Light red bg */
+    color: #b71c1c;
+    /* Dark red text for contrast */
+}
+
+/* Quiz Options - Disabled State Handling */
+.option-button:disabled {
+    cursor: default;
+    opacity: 1;
+    /* Keep full opacity for readability */
+    filter: none;
+    /* Remove any filters */
+}
+
+/* Ensure unselected options are still readable when disabled (after submission) */
+.option-button:disabled:not(.selected):not(.correct):not(.incorrect) {
+    color: #666;
+    /* Slightly lighter for unchosen options */
+    background-color: #f9f9f9;
+    border-color: #eee;
+}
+
+/* Progress Bar */
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background-color: #e0e0e0;
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #4CAF50;
+    transition: width 0.3s ease;
+}
+
+/* Buttons */
+button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 6px;
+    background-color: #2196F3;
+    color: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+button:hover:not(:disabled) {
+    background-color: #1976D2;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+/* Path Input */
+.path-input-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.path-input-container textarea {
+    width: 100%;
+    padding: 15px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-family: inherit;
+    resize: vertical;
+}
+
+.error-message {
+    color: #f44336;
+    margin: 10px 0;
+}
+
+/* Doubt Chat */
+.doubt-chat {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+    margin-top: 2rem;
+}
+
+.chat-header {
+    background: #f5f5f5;
+    padding: 10px 15px;
+    font-weight: bold;
+    border-bottom: 1px solid #ddd;
+}
+
+.messages-container {
+    height: 300px;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+}
+
+.message.user {
+    align-self: flex-end;
+    background: #2196F3;
+    color: white;
+    border-bottom-right-radius: 4px;
+}
+
+.message.ai {
+    align-self: flex-start;
+    background: #f1f1f1;
+    color: #333;
+    border-bottom-left-radius: 4px;
+}
+
+.input-container {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #ddd;
+    gap: 10px;
+}
+
+.input-container input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.loading {
+    font-style: italic;
+    color: #888;
+    font-size: 0.8rem;
+    margin-left: 10px;
+}
