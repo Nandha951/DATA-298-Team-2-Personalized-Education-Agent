@@ -4,6 +4,7 @@ import Navbar from '../components/Shared/Navbar';
 import DoubtChat from '../components/AI/DoubtChat';
 import { useLearningPath } from '../context/LearningPathContext';
 import { llmService } from '../services/llmService';
+import { llamaParseService } from '../services/llamaParseService';
 import ReactMarkdown from 'react-markdown';
 import PathAdjuster from '../components/LearningPath/PathAdjuster';
 
@@ -17,6 +18,7 @@ function MilestoneDetail() {
     const [selection, setSelection] = useState({ text: '', x: 0, y: 0 });
     const [actionState, setActionState] = useState({ type: null, loading: false, result: '', chatHistory: [], error: '' }); // type: 'ask' | 'personalize'
     const [actionInput, setActionInput] = useState('');
+    const [actionFile, setActionFile] = useState(null);
 
     useEffect(() => {
         const found = getMilestoneById(id);
@@ -69,10 +71,18 @@ function MilestoneDetail() {
     };
 
     const handlePersonalize = async () => {
-        if (!actionInput.trim()) return;
+        if (!actionInput.trim() && !actionFile) return;
         setActionState(prev => ({ ...prev, loading: true, error: '' }));
+        
+        let promptText = actionInput;
         try {
-            const data = await llmService.personalizeContent(selection.text, actionInput, milestone.detailedContent);
+            if (actionFile) {
+                const parsedMarkdown = await llamaParseService.parseFile(actionFile);
+                promptText += `\n\nAttached Context Document:\n${parsedMarkdown}`;
+                setActionFile(null);
+            }
+
+            const data = await llmService.personalizeContent(selection.text, promptText, milestone.detailedContent);
             if (data && data.replacementText) {
                 const targetText = data.originalTextToReplace || selection.text;
                 let newContent = milestone.detailedContent;
@@ -96,16 +106,22 @@ function MilestoneDetail() {
     };
 
     const handleAsk = async () => {
-        if (!actionInput.trim()) return;
+        if (!actionInput.trim() && !actionFile) return;
         
         const questionText = actionInput;
-        setActionInput('');
+        const currentFile = actionFile;
         
+        setActionInput('');
+        setActionFile(null);
+        
+        // Show file name in user message if attached
+        const userDisplayMsg = questionText + (currentFile ? `\n\n[Attached: ${currentFile.name}]` : '');
+
         setActionState(prev => ({ 
             ...prev, 
             loading: true, 
             error: '',
-            chatHistory: [...prev.chatHistory, { role: 'user', content: questionText }] 
+            chatHistory: [...prev.chatHistory, { role: 'user', content: userDisplayMsg }] 
         }));
         
         try {
@@ -114,7 +130,13 @@ function MilestoneDetail() {
                 context += "\n\nPrevious Chat History:\n" + actionState.chatHistory.map(m => `${m.role}: ${m.content}`).join("\n");
             }
             
-            const data = await llmService.getDoubtAnswer(questionText, context);
+            let finalQuestionText = questionText;
+            if (currentFile) {
+                const parsedMarkdown = await llamaParseService.parseFile(currentFile);
+                finalQuestionText += `\n\nAttached Context Document Data:\n${parsedMarkdown}`;
+            }
+
+            const data = await llmService.getDoubtAnswer(finalQuestionText, context);
             if (data && data.answer) {
                  setActionState(prev => ({ 
                      ...prev, 
@@ -130,6 +152,7 @@ function MilestoneDetail() {
     const closeModals = () => {
         setActionState({ type: null, loading: false, result: '', chatHistory: [], error: '' });
         setActionInput('');
+        setActionFile(null);
         setSelection({ text: '', x: 0, y: 0 });
         window.getSelection().removeAllRanges();
     };
@@ -282,18 +305,35 @@ function MilestoneDetail() {
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' && !e.shiftKey) {
                                                         e.preventDefault();
-                                                        if (actionInput.trim() && !actionState.loading) {
+                                                        if ((actionInput.trim() || actionFile) && !actionState.loading) {
                                                             actionState.type === 'ask' ? handleAsk() : handlePersonalize();
                                                         }
                                                     }
                                                 }}
                                             />
+                                            
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 'bold', color: '#555' }}>
+                                                    Attach File (Optional, LlamaParse):
+                                                </label>
+                                                <input 
+                                                    type="file" 
+                                                    accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.csv,.html,.epub"
+                                                    onChange={(e) => {
+                                                        if (e.target.files && e.target.files[0]) {
+                                                            setActionFile(e.target.files[0]);
+                                                        }
+                                                    }}
+                                                    disabled={actionState.loading}
+                                                />
+                                            </div>
+
                                             <button 
                                                 onClick={actionState.type === 'ask' ? handleAsk : handlePersonalize}
-                                                disabled={!actionInput.trim() || actionState.loading}
+                                                disabled={(!actionInput.trim() && !actionFile) || actionState.loading}
                                                 style={{ width: '100%', padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                                             >
-                                                {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Ask' : 'Replace & Personalize')}
+                                                {actionState.loading ? (actionFile ? 'Parsing & Processing...' : 'Processing...') : (actionState.type === 'ask' ? 'Ask' : 'Replace & Personalize')}
                                             </button>
                                         </div>
                                     )}
