@@ -83,4 +83,51 @@ router.post('/generate', asyncRoute(async (req, res) => {
     res.status(500).json({ error: "Failed to generate AI content" });
 }));
 
+const vectorDb = require('../services/vectorDb');
+const { requireAuth } = require('../middleware/auth');
+
+// Make sure the router requires auth if we want to extract user memory!
+// We'll leave the base generator unprotected for fallback, but protect the RAG ones.
+
+// POST /api/ai/ask-rag
+router.post('/ask-rag', requireAuth, asyncRoute(async (req, res) => {
+    const { provider, question } = req.body;
+    if (!question) return res.status(400).json({ error: "Missing question" });
+
+    // 1. Retrieve historical context from ChromaDB
+    const context = await vectorDb.queryMemory(req.user.userId, question, 5);
+
+    // 2. Synthesize prompt
+    let prompt = `
+Student Question: "${question}"
+
+You are an expert personalized tutor possessing the student's exact learning memory and resources.
+Below is the highly relevant contextual information extracted from the exact files the student previously uploaded.
+
+PAST KNOWLEDGE / DOCUMENT CONTEXT:
+${context ? `"""\n${context}\n"""` : "No specific relevant memory found in the database. Rely on general AI knowledge."}
+
+INSTRUCTION: Answer the student's question accurately. If the PAST KNOWLEDGE contains the answer, deeply prioritize it with direct citations or mentions of the context. If it does not contain the answer, answer generally and helpfully.
+Return as a JSON object with a key "answer" containing your raw markdown response.
+`;
+
+    // 3. Generate response using native tools
+    let lastError;
+    for (let i = 0; i < 3; i++) {
+        try {
+            const data = await generateContent(provider || 'gemini', prompt);
+            return res.json(data);
+        } catch (err) {
+            lastError = err;
+            if (err.message?.includes('503') || err.status === 429) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                continue;
+            }
+            break;
+        }
+    }
+    console.error("Backend LLM Error:", lastError);
+    res.status(500).json({ error: "Failed to generate AI content" });
+}));
+
 module.exports = router;

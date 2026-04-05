@@ -58,15 +58,23 @@ export const llmService = {
         return generateFromBackend(prompt);
     },
 
-    async getDoubtAnswer(question, context) {
-        const prompt = `
-      Student Question: "${question}"
-      Context: ${context}
-      
-      Answer the question concisely and helpfully as an AI tutor.
-      Return as a JSON object with a key "answer".
-    `;
-        return generateFromBackend(prompt);
+    async getDoubtAnswer(question) {
+        // Now queries the full RAG memory structure via Vector DB instead of relying on frontend states
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch('/api/ai/ask-rag', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ provider: currentProvider, question })
+        });
+        
+        if (!response.ok) {
+            let msg = await response.text();
+            throw new Error(`RAG Query Error: ${msg}`);
+        }
+        return response.json(); 
     },
 
     async getQuiz(milestoneContext, type) {

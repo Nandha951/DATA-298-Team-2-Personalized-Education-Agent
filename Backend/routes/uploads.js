@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { requireAuth } = require('../middleware/auth');
+const vectorDb = require('../services/vectorDb');
 
 const router = express.Router();
 
@@ -86,6 +87,11 @@ router.post('/document', upload.single('file'), asyncRoute(async (req, res) => {
 
         if (!resultRes.ok) throw new Error(`Failed to fetch parsed markdown`);
         const resultData = await resultRes.json();
+        
+        // 4. Extract Text & Push exactly into Semantic Memory 
+        // Note: Done asynchronously to not block the immediate JSON response to the user
+        vectorDb.saveDocument(req.user.userId, req.file.originalname, resultData.markdown)
+            .catch(err => console.error("ChromaDB Background Save Error:", err));
 
         // Pass back the local file URL and the extracted markdown!
         res.json({ 

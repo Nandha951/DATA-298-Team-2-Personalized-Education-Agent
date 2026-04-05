@@ -8,8 +8,12 @@ const aiRoutes = require('./routes/ai');
 const pathsRoutes = require('./routes/paths');
 const uploadsRoutes = require('./routes/uploads');
 const path = require('path');
+const vectorDb = require('./services/vectorDb');
 
+// Initialize dependencies
 const prisma = new PrismaClient();
+vectorDb.initialize();
+
 const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_dev';
