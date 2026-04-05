@@ -172,5 +172,49 @@ export const llmService = {
       Each question: { id, text, options: [], correctAnswer, explanation }.
     `;
         return withRetry(() => strategies[currentProvider].generate(prompt));
+    },
+
+    async adjustLearningPath(currentMilestones, adjustmentInstruction) {
+        const prompt = `
+      You are an expert educational advisor.
+      The student is currently following this learning path with these milestones:
+      ${JSON.stringify(currentMilestones, null, 2)}
+      
+      The student has requested to change their learning direction: "${adjustmentInstruction}".
+      
+      IMPORTANT RULE: You MUST keep ALL existing milestones (including incomplete ones) and append or insert the new content based on the adjustment instruction, UNLESS the user explicitly mentions removing, replacing, or skipping existing ones.
+      
+      Return the output as a JSON object with a key "milestones".
+      Each milestone should adhere to the same schema:
+      - id: unique string or number (preserve existing ids if keeping a milestone)
+      - title: name of the milestone
+      - topics: array of subtopics
+      - progress: 0 (or 100 if preserving a previously completed milestone)
+      - completed: boolean (true if preserving a previously completed milestone)
+      - hasFinetuning: boolean
+      - content: brief introductory text
+    `;
+        return withRetry(() => strategies[currentProvider].generate(prompt));
+    },
+
+    async personalizeContent(selectedText, instruction, fullContext) {
+        const prompt = `
+      You are an expert tutor. The student selected this text from their lesson:
+      "${selectedText}"
+      
+      Here is the full lesson context:
+      "${fullContext}"
+      
+      Student's instruction to change the text:
+      "${instruction}"
+      
+      Please rewrite the selected text according to the student's instruction.
+      To ensure we replace the correct formatting, please extract the EXACT substring from the "full lesson context" that corresponds to the selected text, including any markdown formatting like ** or ## or newlines.
+      
+      Return as a JSON object with two keys:
+      - "originalTextToReplace": The exact literal string from the context to be replaced.
+      - "replacementText": The new rewritten text.
+    `;
+        return withRetry(() => strategies[currentProvider].generate(prompt));
     }
 };

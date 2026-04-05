@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import Navbar from '../components/Shared/Navbar';
 import MilestoneList from '../components/LearningPath/MilestoneList';
+import PathAdjuster from '../components/LearningPath/PathAdjuster';
 import { useLearningPath } from '../context/LearningPathContext';
 
 function Dashboard() {
@@ -31,6 +32,8 @@ function Dashboard() {
                         </select>
                     </div>
                 )}
+
+                <PathAdjuster />
 
                 {milestones.length > 0 ? (
                     <MilestoneList milestones={milestones} currentMilestone={currentMilestoneId} />
