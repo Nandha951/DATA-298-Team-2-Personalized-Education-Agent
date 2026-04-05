@@ -13,6 +13,8 @@ function Navbar() {
                 <ul className="nav-links">
                     <li><Link to="/">Home</Link></li>
                     <li><Link to="/dashboard">Dashboard</Link></li>
+                    <li><Link to="/login" style={{ marginLeft: '10px', padding: '5px 10px', background: '#f0f0f0', borderRadius: '4px', textDecoration: 'none' }}>Log In</Link></li>
+                    <li><Link to="/signup" style={{ padding: '5px 10px', background: '#4CAF50', color: 'white', borderRadius: '4px', textDecoration: 'none' }}>Sign Up</Link></li>
                 </ul>
                 <div className="provider-selector">
                     <select

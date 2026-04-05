@@ -10,6 +10,14 @@ export default defineConfig({
         target: 'https://api.cloud.llamaindex.ai',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/llamaparse/, '/api/parsing')
+      },
+      '/api/auth': {
+        target: 'http://localhost:4000',
+        changeOrigin: true
+      },
+      '/api/ai': {
+        target: 'http://localhost:4000',
+        changeOrigin: true
       }
     }
   }

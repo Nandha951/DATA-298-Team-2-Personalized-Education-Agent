@@ -1,110 +1,22 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import OpenAI from "openai";
-
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const OPENAI_API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
-const DEEPSEEK_API_KEY = import.meta.env.VITE_DEEPSEEK_API_KEY;
-
-// --- Helper Functions ---
-const cleanResponse = (text) => {
-    // Remove markdown code blocks if present (```json ... ```)
-    return text.replace(/```json/g, "").replace(/```/g, "").trim();
-};
-
-const withRetry = async (fn, retries = 3, delay = 2000) => {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await fn();
-        } catch (error) {
-            const isTransient = error.message?.includes("503") || error.message?.includes("500") || error.message?.includes("high demand") || error.status === 429;
-            if (isTransient && i < retries - 1) {
-                console.warn(`LLM Service: Temporary error. Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
-                await new Promise(resolve => setTimeout(resolve, delay));
-                continue;
-            }
-            throw error;
-        }
-    }
-};
-
-// --- Provider Clients ---
-
-// 1. Gemini
-const geminiClient = new GoogleGenerativeAI(GEMINI_API_KEY);
-const geminiModel = geminiClient.getGenerativeModel({
-    model: "gemini-flash-latest",
-    generationConfig: { responseMimeType: "application/json" },
-});
-
-// 2. OpenAI
-const openaiClient = OPENAI_API_KEY ? new OpenAI({
-    apiKey: OPENAI_API_KEY,
-    dangerouslyAllowBrowser: true // Frontend-only demo requirement
-}) : null;
-
-// 3. Deepseek (OpenAI Compatible)
-const deepseekClient = DEEPSEEK_API_KEY ? new OpenAI({
-    baseURL: 'https://api.deepseek.com',
-    apiKey: DEEPSEEK_API_KEY,
-    dangerouslyAllowBrowser: true
-}) : null;
-
-
-// --- Strategies ---
-const OPENAI_MODEL = import.meta.env.VITE_OPENAI_MODEL || "gpt-5-nano";
-const DEEPSEEK_MODEL = import.meta.env.VITE_DEEPSEEK_MODEL || "deepseek-chat";
-
-// --- Strategies ---
-const strategies = {
-    gemini: {
-        generate: async (prompt) => {
-            const result = await geminiModel.generateContent(prompt);
-            const response = await result.response;
-            let text = response.text();
-            return JSON.parse(cleanResponse(text));
-        }
-    },
-    openai: {
-        generate: async (prompt) => {
-            if (!openaiClient) throw new Error("OpenAI API Key not configured in .env");
-            const completion = await openaiClient.chat.completions.create({
-                messages: [
-                    { role: "system", content: "You are a helpful educational assistant. Output strictly valid JSON." },
-                    { role: "user", content: prompt }
-                ],
-                model: OPENAI_MODEL,
-                response_format: { type: "json_object" },
-            });
-            return JSON.parse(cleanResponse(completion.choices[0].message.content));
-        }
-    },
-    deepseek: {
-        generate: async (prompt) => {
-            if (!deepseekClient) throw new Error("Deepseek API Key not configured in .env");
-            const completion = await deepseekClient.chat.completions.create({
-                messages: [
-                    { role: "system", content: "You are a helpful educational assistant. Output strictly valid JSON." },
-                    { role: "user", content: prompt }
-                ],
-                model: DEEPSEEK_MODEL,
-                response_format: { type: "json_object" },
-            });
-            return JSON.parse(cleanResponse(completion.choices[0].message.content));
-        }
-    }
-};
-
 let currentProvider = 'gemini';
+
+const generateFromBackend = async (prompt) => {
+    const response = await fetch('/api/ai/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ provider: currentProvider, prompt })
+    });
+    if (!response.ok) {
+        let msg = await response.text();
+        throw new Error(`Backend AI Error: ${msg}`);
+    }
+    return response.json(); // The backend cleans and parses the JSON for us!
+};
 
 export const llmService = {
     setProvider(provider) {
-        if (!strategies[provider]) {
-            console.warn(`Provider ${provider} not supported. Fallback to gemini.`);
-            currentProvider = 'gemini';
-            return;
-        }
         currentProvider = provider;
-        console.log(`Switched to LLM Provider: ${provider}`);
+        console.log(`Switched to LLM Provider: ${provider} (Backend Proxy)`);
     },
 
     getCurrentProvider() {
@@ -127,7 +39,7 @@ export const llmService = {
       
       Generate between 3 to 6 milestones.
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     },
 
     async generateMilestoneContent(milestone) {
@@ -143,7 +55,7 @@ export const llmService = {
       Return as a JSON object with a key "detailedContent".
       The value should be a string (markdown format is allowed).
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     },
 
     async getDoubtAnswer(question, context) {
@@ -154,7 +66,7 @@ export const llmService = {
       Answer the question concisely and helpfully as an AI tutor.
       Return as a JSON object with a key "answer".
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     },
 
     async getQuiz(milestoneContext, type) {
@@ -171,7 +83,7 @@ export const llmService = {
       Return as JSON object with a key "questions".
       Each question: { id, text, options: [], correctAnswer, explanation }.
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     },
 
     async adjustLearningPath(currentMilestones, adjustmentInstruction) {
@@ -194,7 +106,7 @@ export const llmService = {
       - hasFinetuning: boolean
       - content: brief introductory text
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     },
 
     async personalizeContent(selectedText, instruction, fullContext) {
@@ -215,6 +127,6 @@ export const llmService = {
       - "originalTextToReplace": The exact literal string from the context to be replaced.
       - "replacementText": The new rewritten text.
     `;
-        return withRetry(() => strategies[currentProvider].generate(prompt));
+        return generateFromBackend(prompt);
     }
 };
