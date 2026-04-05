@@ -5,6 +5,9 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const aiRoutes = require('./routes/ai');
+const pathsRoutes = require('./routes/paths');
+const uploadsRoutes = require('./routes/uploads');
+const path = require('path');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -13,9 +16,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_dev';
 
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/ai', aiRoutes);
+app.use('/api/paths', pathsRoutes);
+app.use('/api/uploads', uploadsRoutes);
 
 // Helper to wrap async errors
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);

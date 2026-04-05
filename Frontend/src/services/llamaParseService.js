@@ -1,61 +1,36 @@
 export const llamaParseService = {
     async parseFile(file) {
-        const apiKey = import.meta.env.VITE_LLAMAPARSE_API_KEY;
-        if (!apiKey) {
-            throw new Error("VITE_LLAMAPARSE_API_KEY is not defined in .env");
-        }
-
         const formData = new FormData();
         formData.append("file", file);
 
         try {
-            // 1. Upload the file
-            const uploadRes = await fetch('/api/llamaparse/upload', {
+            // Retrieve session token to establish identity
+            const token = localStorage.getItem('auth_token');
+            if (!token) throw new Error("Authentication required to upload files");
+
+            // Upload to the Express Server
+            const response = await fetch('/api/uploads/document', {
                 method: 'POST',
                 headers: {
-                    'accept': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: formData
             });
 
-            if (!uploadRes.ok) throw new Error(`Upload failed: ${uploadRes.statusText}`);
-            const uploadData = await uploadRes.json();
-            const jobId = uploadData.id;
-
-            // 2. Poll for completion
-            let status = 'PENDING';
-            while (status === 'PENDING') {
-                await new Promise(resolve => setTimeout(resolve, 2000)); // wait 2s
-                const statusRes = await fetch(`/api/llamaparse/job/${jobId}`, {
-                    headers: {
-                        'accept': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    }
-                });
-                if (!statusRes.ok) throw new Error(`Status check failed: ${statusRes.statusText}`);
-                const statusData = await statusRes.json();
-                status = statusData.status;
-
-                if (status === 'ERROR') {
-                    throw new Error("LlamaParse parsing error.");
-                }
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Upload failed: ${response.statusText}`);
             }
 
-            // 3. Fetch markdown result
-            const resultRes = await fetch(`/api/llamaparse/job/${jobId}/result/markdown`, {
-                headers: {
-                    'accept': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                }
-            });
-
-            if (!resultRes.ok) throw new Error(`Failed to fetch parsed markdown: ${resultRes.statusText}`);
-            const resultData = await resultRes.json();
+            const data = await response.json();
             
-            return resultData.markdown;
+            console.log("Locally saved at: ", data.localFilePath);
+
+            // Returns the deeply parsed LlamaCloud string safely!
+            return data.markdown;
+            
         } catch (error) {
-            console.error("LlamaParse Service Error:", error);
+            console.error("Local Upload & Parse Service Error:", error);
             throw error;
         }
     }

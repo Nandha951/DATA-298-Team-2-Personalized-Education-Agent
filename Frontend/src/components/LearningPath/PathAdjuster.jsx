@@ -22,7 +22,18 @@ function PathAdjuster() {
         try {
             if (file) {
                 const parsedMarkdown = await llamaParseService.parseFile(file);
-                finalQuery += `\n\n[Attached Context Document]\n${parsedMarkdown}`;
+                finalQuery = `
+The user has provided a TEXT ADJUSTMENT REQUEST and an ATTACHED DOCUMENT.
+
+TEXT ADJUSTMENT REQUEST: "${input || 'Adjust the path based heavily on the contents of the attached document'}"
+
+ATTACHED DOCUMENT CONTENT:
+"""
+${parsedMarkdown}
+"""
+
+CRITICAL INSTRUCTION: You MUST adjust the existing learning path by satisfying the TEXT ADJUSTMENT REQUEST while explicitly factoring in the newly provided ATTACHED DOCUMENT CONTENT. Both inputs must be treated with equal weight and synthesized seamlessly into the modifications.
+`;
             }
 
             const data = await llmService.adjustLearningPath(milestones, finalQuery);

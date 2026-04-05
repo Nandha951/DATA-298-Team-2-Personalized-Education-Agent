@@ -28,7 +28,18 @@ function PathInput({ onPathGenerated }) {
             if (file) {
                 // If there's an attachment, parse it with LlamaParse first
                 const parsedMarkdown = await llamaParseService.parseFile(file);
-                finalQuery = `User's Goal: ${input}\n\nAttached Context Document:\n${parsedMarkdown}`;
+                finalQuery = `
+The user has provided a TEXT REQUEST and an ATTACHED DOCUMENT.
+
+TEXT REQUEST: "${input || 'Analyze and create a comprehensive learning path based entirely on the attached document.'}"
+
+ATTACHED DOCUMENT CONTENT:
+"""
+${parsedMarkdown}
+"""
+
+CRITICAL INSTRUCTION: You MUST generate a learning path that directly addresses the TEXT REQUEST while explicitly factoring in the specific information, topics, and data found within the ATTACHED DOCUMENT CONTENT. Both inputs must be synthesized together to form the milestones.
+`;
             }
 
             const data = await llmService.generateLearningPath(finalQuery);

@@ -5,7 +5,7 @@ import PathAdjuster from '../components/LearningPath/PathAdjuster';
 import { useLearningPath } from '../context/LearningPathContext';
 
 function Dashboard() {
-    const { milestones, currentMilestoneId, learningPaths, currentPathId, switchPath } = useLearningPath();
+    const { milestones, currentMilestoneId, learningPaths, currentPathId, switchPath, deletePath } = useLearningPath();
 
     return (
         <div className="dashboard-page">
@@ -17,8 +17,8 @@ function Dashboard() {
                 </div>
 
                 {learningPaths && learningPaths.length > 0 && (
-                    <div className="path-selector" style={{ marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
-                        <label style={{ marginRight: '10px', fontWeight: 'bold' }}>Current Path:</label>
+                    <div className="path-selector" style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px', padding: '15px', background: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+                        <label style={{ fontWeight: 'bold' }}>Current Path:</label>
                         <select
                             value={currentPathId || ''}
                             onChange={(e) => switchPath(e.target.value)}
@@ -26,10 +26,21 @@ function Dashboard() {
                         >
                             {learningPaths.map(path => (
                                 <option key={path.id} value={path.id}>
-                                    {path.title} ({new Date(path.createdAt).toLocaleDateString()})
+                                    {path.topic || path.title || "Untitled Path"} ({new Date(path.createdAt).toLocaleDateString()})
                                 </option>
                             ))}
                         </select>
+                        <button 
+                            type="button"
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                deletePath(currentPathId);
+                            }}
+                            style={{ padding: '8px 12px', background: '#f44336', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        >
+                            Delete Path
+                        </button>
                     </div>
                 )}
 
