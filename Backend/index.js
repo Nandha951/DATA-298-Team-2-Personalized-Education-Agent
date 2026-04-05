@@ -7,6 +7,7 @@ const { PrismaClient } = require('@prisma/client');
 const aiRoutes = require('./routes/ai');
 const pathsRoutes = require('./routes/paths');
 const uploadsRoutes = require('./routes/uploads');
+const chatsRoutes = require('./routes/chats');
 const path = require('path');
 const vectorDb = require('./services/vectorDb');
 
@@ -26,6 +27,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/ai', aiRoutes);
 app.use('/api/paths', pathsRoutes);
 app.use('/api/uploads', uploadsRoutes);
+app.use('/api/chats', chatsRoutes);
 
 // Helper to wrap async errors
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);

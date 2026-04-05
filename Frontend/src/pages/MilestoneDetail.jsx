@@ -106,47 +106,56 @@ function MilestoneDetail() {
     };
 
     const handleAsk = async () => {
-        if (!actionInput.trim() && !actionFile) return;
+        if (!actionInput.trim()) return;
         
         const questionText = actionInput;
-        const currentFile = actionFile;
-        
         setActionInput('');
-        setActionFile(null);
-        
-        // Show file name in user message if attached
-        const userDisplayMsg = questionText + (currentFile ? `\n\n[Attached: ${currentFile.name}]` : '');
 
+        // Ensure we have a thread ID
+        const threadIdToUse = actionState.activeThreadId || `${id}_selection_${Date.now()}`;
+        
         setActionState(prev => ({ 
             ...prev, 
             loading: true, 
             error: '',
-            chatHistory: [...prev.chatHistory, { role: 'user', content: userDisplayMsg }] 
+            activeThreadId: threadIdToUse,
+            chatHistory: [...prev.chatHistory, { role: 'user', content: questionText }] 
         }));
         
         try {
-            let context = `Selected text: "${selection.text}"\nFull module context: ${milestone.detailedContent}`;
-            if (actionState.chatHistory.length > 0) {
-                context += "\n\nPrevious Chat History:\n" + actionState.chatHistory.map(m => `${m.role}: ${m.content}`).join("\n");
-            }
-            
-            let finalQuestionText = questionText;
-            if (currentFile) {
-                const parsedMarkdown = await llamaParseService.parseFile(currentFile);
-                finalQuestionText += `\n\nAttached Context Document Data:\n${parsedMarkdown}`;
-            }
-
-            const data = await llmService.getDoubtAnswer(finalQuestionText, context);
+            const data = await llmService.getDoubtAnswer(questionText);
             if (data && data.answer) {
                  setActionState(prev => ({ 
                      ...prev, 
                      loading: false, 
                      chatHistory: [...prev.chatHistory, { role: 'ai', content: data.answer }]
                  }));
+                 // Save messages to backend
+                 saveChatToBackend('user', questionText, threadIdToUse);
+                 saveChatToBackend('ai', data.answer, threadIdToUse);
             }
         } catch (err) {
             setActionState(prev => ({ ...prev, loading: false, error: 'Failed to get answer.' }));
         }
+    };
+
+    const saveChatToBackend = async (role, content, threadId) => {
+        const token = localStorage.getItem('auth_token');
+        if (!token) return;
+        
+        // Also update local thread state so it immediately appears in sidebar if new
+        setActionState(prev => {
+            const updatedThreads = { ...prev.threads };
+            if (!updatedThreads[threadId]) updatedThreads[threadId] = [];
+            updatedThreads[threadId] = [...updatedThreads[threadId], { role, content }];
+            return { ...prev, threads: updatedThreads };
+        });
+
+        await fetch('/api/chats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ role, content, contextRef: threadId })
+        });
     };
 
     const closeModals = () => {
@@ -224,7 +233,30 @@ function MilestoneDetail() {
                                 }}
                             >
                                 <button 
-                                    onClick={() => setActionState({ type: 'ask', loading: false, result: '', chatHistory: [], error: '' })}
+                                    onClick={async () => {
+                                        const newThreadId = `${id}_selection_${Date.now()}`;
+                                        setActionState({ type: 'ask', loading: true, result: '', chatHistory: [], error: '', activeThreadId: newThreadId, threads: {} });
+                                        try {
+                                            const token = localStorage.getItem('auth_token');
+                                            if (token) {
+                                                const res = await fetch(`/api/chats/${id}/threads`, {
+                                                    headers: { 'Authorization': `Bearer ${token}` }
+                                                });
+                                                if (res.ok) {
+                                                    const threadsData = await res.json();
+                                                    setActionState(prev => ({ 
+                                                        ...prev, 
+                                                        loading: false,
+                                                        threads: threadsData
+                                                    }));
+                                                    return;
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.error("Failed to load modal chat history", e);
+                                        }
+                                        setActionState(prev => ({ ...prev, loading: false }));
+                                    }}
                                     style={{ background: 'transparent', color: 'white', border: 'none', padding: '5px 10px', cursor: 'pointer' }}
                                 >
                                     Ask Question
@@ -251,109 +283,135 @@ function MilestoneDetail() {
                             }}>
                                 <div className="action-modal" style={{ 
                                     background: '#fff', 
-                                    padding: '24px', 
                                     borderRadius: '12px', 
                                     width: '90%', 
-                                    maxWidth: '600px',
-                                    maxHeight: '80vh',
-                                    overflowY: 'auto',
+                                    maxWidth: '900px',
+                                    height: '80vh',
+                                    display: 'flex',
                                     boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-                                    position: 'relative'
+                                    position: 'relative',
+                                    overflow: 'hidden'
                                 }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                        <h3 style={{ margin: 0 }}>{actionState.type === 'ask' ? 'Ask a Question' : 'Personalize Content'}</h3>
-                                    </div>
-                                    
-                                    <p style={{ fontStyle: 'italic', color: '#666', marginBottom: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '6px', borderLeft: '3px solid #ccc' }}>
-                                        Selected text: "{selection.text.substring(0, 100)}{selection.text.length > 100 ? '...' : ''}"
-                                    </p>
+                                    {/* Sidebar for Past Threads */}
+                                    {actionState.type === 'ask' && (
+                                        <div style={{ width: '280px', background: '#f5f7fa', borderRight: '1px solid #ddd', padding: '15px', overflowY: 'auto' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                                <h3 style={{ margin: 0, fontSize: '18px' }}>Chat History</h3>
+                                                <button 
+                                                    onClick={() => {
+                                                        const newThreadId = `${id}_selection_${Date.now()}`;
+                                                        setActionState(prev => ({ 
+                                                            ...prev, 
+                                                            activeThreadId: newThreadId,
+                                                            chatHistory: [] // Blank slate
+                                                        }));
+                                                    }}
+                                                    style={{ padding: '6px 12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                >
+                                                    + New Text Chat
+                                                </button>
+                                            </div>
 
-                                    {actionState.type === 'ask' && actionState.chatHistory.length > 0 && (
-                                        <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                                            {actionState.chatHistory.map((msg, i) => (
-                                                <div key={i} style={{ 
-                                                    background: msg.role === 'ai' ? '#f8fdf8' : '#e3f2fd', 
-                                                    padding: '15px', 
-                                                    borderRadius: '8px', 
-                                                    borderLeft: msg.role === 'ai' ? '4px solid #4CAF50' : '4px solid #2196F3' 
-                                                }}>
-                                                    <strong style={{ color: msg.role === 'ai' ? '#2e7d32' : '#1565c0' }}>{msg.role === 'ai' ? 'Answer:' : 'You:'}</strong>
-                                                    <div style={{ marginTop: '10px', lineHeight: '1.6' }} className="markdown-body">
-                                                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                                    </div>
+                                            {Object.keys(actionState.threads || {}).length === 0 ? (
+                                                <p style={{ color: '#888', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>No past selection chats found.</p>
+                                            ) : (
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                    {Object.entries(actionState.threads || {}).map(([threadId, messages]) => {
+                                                        const isActive = actionState.activeThreadId === threadId;
+                                                        // Get snippet of the very first user message for title
+                                                        const firstMsg = messages.find(m => m.role === 'user')?.content || "Empty chat";
+                                                        return (
+                                                            <div 
+                                                                key={threadId}
+                                                                onClick={() => {
+                                                                    setActionState(prev => ({
+                                                                        ...prev,
+                                                                        activeThreadId: threadId,
+                                                                        chatHistory: messages
+                                                                    }));
+                                                                }}
+                                                                style={{ 
+                                                                    padding: '10px', 
+                                                                    borderRadius: '6px', 
+                                                                    background: isActive ? '#e3f2fd' : 'white',
+                                                                    border: isActive ? '1px solid #90caf9' : '1px solid #eee',
+                                                                    cursor: 'pointer',
+                                                                    fontSize: '13px',
+                                                                    whiteSpace: 'nowrap',
+                                                                    overflow: 'hidden',
+                                                                    textOverflow: 'ellipsis'
+                                                                }}
+                                                            >
+                                                                <strong>{new Date(parseInt(threadId.split('_').pop()) || Date.now()).toLocaleDateString()}:</strong> {firstMsg}
+                                                            </div>
+                                                        );
+                                                    })}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
                                     )}
 
-                                    {/* For Personalize Result (if we ever re-added one) or general form */}
-                                    {actionState.type === 'personalize' && actionState.result ? (
-                                        <div style={{ background: '#f8fdf8', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #4CAF50', marginBottom: '20px' }}>
-                                            <strong style={{ color: '#2e7d32' }}>Result:</strong>
-                                            <div style={{ marginTop: '10px', lineHeight: '1.6' }} className="markdown-body">
-                                                <ReactMarkdown>{actionState.result}</ReactMarkdown>
-                                            </div>
+                                    {/* Main Chat Area */}
+                                    <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                            <h3 style={{ margin: 0 }}>{actionState.type === 'ask' ? 'Ask a Question about Highlighted Text' : 'Personalize Content'}</h3>
+                                            <button 
+                                                onClick={closeModals} 
+                                                style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}
+                                            >
+                                                ×
+                                            </button>
                                         </div>
-                                    ) : (
-                                        <div style={{ display: 'flex', gap: '15px', flexDirection: 'column' }}>
+                                        
+                                        <p style={{ fontStyle: 'italic', color: '#666', marginBottom: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '6px', borderLeft: '3px solid #ccc' }}>
+                                            Selection Context: "{selection.text.substring(0, 100)}{selection.text.length > 100 ? '...' : ''}"
+                                        </p>
+
+                                        {actionState.type === 'ask' && actionState.chatHistory.length > 0 && (
+                                            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px', flex: 1 }}>
+                                                {actionState.chatHistory.map((msg, i) => (
+                                                    <div key={i} style={{ 
+                                                        background: msg.role === 'ai' ? '#f8fdf8' : '#e3f2fd', 
+                                                        padding: '15px', 
+                                                        borderRadius: '8px', 
+                                                        borderLeft: msg.role === 'ai' ? '4px solid #4CAF50' : '4px solid #2196F3' 
+                                                    }}>
+                                                        <strong style={{ color: msg.role === 'ai' ? '#2e7d32' : '#1565c0' }}>{msg.role === 'ai' ? 'Answer:' : 'You:'}</strong>
+                                                        <div style={{ marginTop: '10px', lineHeight: '1.6' }} className="markdown-body">
+                                                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto' }}>
                                             <textarea 
                                                 value={actionInput}
                                                 onChange={(e) => setActionInput(e.target.value)}
-                                                placeholder={actionState.type === 'ask' ? "What's confusing about this? (Or ask a follow up)" : "e.g., Explain this using an analogy?"}
-                                                rows="4"
+                                                placeholder={actionState.type === 'ask' ? "Type your question here..." : "e.g., Explain this using an analogy?"}
+                                                rows="3"
                                                 style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', width: '100%', resize: 'vertical' }}
                                                 onKeyDown={(e) => {
                                                     if (e.key === 'Enter' && !e.shiftKey) {
                                                         e.preventDefault();
-                                                        if ((actionInput.trim() || actionFile) && !actionState.loading) {
+                                                        if (actionInput.trim() && !actionState.loading) {
                                                             actionState.type === 'ask' ? handleAsk() : handlePersonalize();
                                                         }
                                                     }
                                                 }}
                                             />
                                             
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', fontWeight: 'bold', color: '#555' }}>
-                                                    Attach File (Optional, LlamaParse):
-                                                </label>
-                                                <input 
-                                                    type="file" 
-                                                    accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.csv,.html,.epub"
-                                                    onChange={(e) => {
-                                                        if (e.target.files && e.target.files[0]) {
-                                                            setActionFile(e.target.files[0]);
-                                                        }
-                                                    }}
-                                                    disabled={actionState.loading}
-                                                />
-                                            </div>
-
                                             <button 
                                                 onClick={actionState.type === 'ask' ? handleAsk : handlePersonalize}
-                                                disabled={(!actionInput.trim() && !actionFile) || actionState.loading}
+                                                disabled={(!actionInput.trim()) || actionState.loading}
                                                 style={{ width: '100%', padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
                                             >
-                                                {actionState.loading ? (actionFile ? 'Parsing & Processing...' : 'Processing...') : (actionState.type === 'ask' ? 'Ask' : 'Replace & Personalize')}
+                                                {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Send' : 'Replace & Personalize')}
                                             </button>
                                         </div>
-                                    )}
-                                    {actionState.error && <p style={{ color: '#d32f2f', marginTop: '15px', textAlign: 'center' }}>{actionState.error}</p>}
-                                    
-                                    <button 
-                                        onClick={closeModals} 
-                                        style={{ 
-                                            width: '100%', 
-                                            padding: '10px', 
-                                            marginTop: '15px', 
-                                            background: 'transparent', 
-                                            color: '#666', 
-                                            border: '1px solid #ddd', 
-                                            borderRadius: '6px', 
-                                            cursor: 'pointer' 
-                                        }}
-                                    >
-                                        Close
-                                    </button>
+                                        {actionState.error && <p style={{ color: '#d32f2f', marginTop: '15px', textAlign: 'center' }}>{actionState.error}</p>}
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -370,7 +428,7 @@ function MilestoneDetail() {
 
                     <div className="doubt-section">
                         <h2>Need Help?</h2>
-                        <DoubtChat milestoneContext={milestone.title + ": " + (milestone.detailedContent || milestone.content || "")} />
+                        <DoubtChat milestoneId={id} />
                     </div>
                 </div>
             </div>

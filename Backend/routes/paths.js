@@ -41,11 +41,12 @@ router.post('/', asyncRoute(async (req, res) => {
             userId: req.user.userId,
             topic,
             milestones: {
-                create: milestones.map(m => ({
+                create: milestones.map((m, index) => ({
                     title: m.title,
                     topics: JSON.stringify(m.topics),
                     content: m.content || null,
                     progress: m.progress || 0,
+                    locked: index === 0 ? false : true,
                     hasFinetuning: m.hasFinetuning || false
                 }))
             }
@@ -64,12 +65,13 @@ router.post('/', asyncRoute(async (req, res) => {
 // PUT /api/paths/milestone/:id - Update milestone content (e.g. after generating detailed content)
 router.put('/milestone/:id', asyncRoute(async (req, res) => {
     const { id } = req.params;
-    const { detailedContent, progress, completed } = req.body;
+    const { detailedContent, progress, completed, locked } = req.body;
 
     const dataToUpdate = {};
     if (detailedContent !== undefined) dataToUpdate.detailedContent = detailedContent;
     if (progress !== undefined) dataToUpdate.progress = progress;
     if (completed !== undefined) dataToUpdate.completed = completed;
+    if (locked !== undefined) dataToUpdate.locked = locked;
 
     const updated = await prisma.milestone.update({
         where: { id },

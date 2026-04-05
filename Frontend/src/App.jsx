@@ -9,6 +9,8 @@ import './styles/global.css';
 
 import { LearningPathProvider } from './context/LearningPathContext';
 
+import ProtectedRoute from './components/Shared/ProtectedRoute';
+
 function App() {
   return (
     <LearningPathProvider>
@@ -18,9 +20,15 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/milestone/:id" element={<MilestoneDetail />} />
-            <Route path="/quiz/:milestoneId/:type" element={<QuizPage />} />
+            <Route path="/dashboard" element={
+              <ProtectedRoute><Dashboard /></ProtectedRoute>
+            } />
+            <Route path="/milestone/:id" element={
+              <ProtectedRoute><MilestoneDetail /></ProtectedRoute>
+            } />
+            <Route path="/quiz/:milestoneId/:type" element={
+              <ProtectedRoute><QuizPage /></ProtectedRoute>
+            } />
           </Routes>
         </div>
       </Router>

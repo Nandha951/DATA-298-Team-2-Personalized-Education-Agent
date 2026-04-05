@@ -37,6 +37,7 @@ model Milestone {
   detailedContent String?      
   progress        Int          @default(0)
   completed       Boolean      @default(false)
+  locked          Boolean      @default(true)
   hasFinetuning   Boolean      @default(false)
 }
 
