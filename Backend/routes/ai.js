@@ -130,4 +130,91 @@ Return as a JSON object with a key "answer" containing your raw markdown respons
     res.status(500).json({ error: "Failed to generate AI content" });
 }));
 
+// GET /api/ai/stream-generate - Universal generic streaming endpoint for UI elements
+router.post('/stream-generate', asyncRoute(async (req, res) => {
+    const { prompt } = req.body;
+    if (!prompt) return res.status(400).end();
+
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.flushHeaders();
+    res.write(" ");
+
+    try {
+        const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+        const result = await streamModel.generateContentStream(prompt);
+
+        for await (const chunk of result.stream) {
+            res.write(chunk.text());
+        }
+        res.end();
+    } catch (err) {
+        console.error("Streaming error:", err);
+        res.write(`\n\n[Error: Stream interrupted: ${err.message}]`);
+        res.end();
+    }
+}));
+
+// GET /api/ai/stream-rag - Streaming SSE endpoint for Chatbots
+// Note: Must use GET or specific eventSource setups, or use generic POST with chunked Transfer-Encoding
+router.post('/stream-rag', requireAuth, asyncRoute(async (req, res) => {
+    const { question } = req.body;
+    if (!question) return res.status(400).end();
+
+    console.log(`[Stream API] Initiating request for user ${req.user.userId}`);
+    
+    // Setup headers for standard Text streaming (not SSE, just direct piped chunks)
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.flushHeaders(); // MUST flush so the browser understands the stream is active
+    
+    // We can yield a small invisible char or space to trigger the reader on the frontend
+    res.write(" ");
+
+    try {
+        let context = "";
+        try {
+            console.log(`[Stream API] Querying VectorDB memory for context...`);
+            context = await vectorDb.queryMemory(req.user.userId, question, 5);
+            console.log(`[Stream API] VectorDB retrieved ${context.length} characters of context.`);
+        } catch (dbErr) {
+            console.error("[Stream API] Vector DB fetch failed during stream:", dbErr);
+        }
+
+        let prompt = `
+Student Question: "${question}"
+
+You are an expert personalized tutor possessing the student's exact learning memory and resources.
+Below is the highly relevant contextual information extracted from the exact files the student previously uploaded.
+
+PAST KNOWLEDGE / DOCUMENT CONTEXT:
+${context ? `"""\n${context}\n"""` : "No specific relevant memory found in the database. Rely on general AI knowledge."}
+
+INSTRUCTION: Answer the student's question accurately. If the PAST KNOWLEDGE contains the answer, deeply prioritize it with direct citations or mentions of the context. 
+IMPORTANT: Stream directly in markdown. DO NOT wrap with \`\`\`json or output JSON objects.
+`;      
+        console.log(`[Stream API] Synthesized complete LLM prompt.`);
+        
+        // Use standard gemini model instead of json-enforced one
+        const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+        const result = await streamModel.generateContentStream(prompt);
+        console.log(`[Stream API] Gemini stream connection established. Piping chunks...`);
+
+        let byteCount = 0;
+        for await (const chunk of result.stream) {
+            const textChunk = chunk.text();
+            byteCount += textChunk.length;
+            res.write(textChunk);
+        }
+        res.end();
+        console.log(`[Stream API] Successfully finished stream. Piped ${byteCount} bytes.`);
+    } catch (err) {
+        console.error("[Stream API] Uncaught streaming error:", err);
+        res.write(`\n\n[Error: Stream interrupted: ${err.message}]`);
+        res.end();
+    }
+}));
+
 module.exports = router;

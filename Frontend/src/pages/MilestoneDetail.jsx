@@ -44,14 +44,53 @@ function MilestoneDetail() {
 
     const generateContent = async (m) => {
         setGeneratingContent(true);
+        // Start with an empty string so the UI can mount ReactMarkdown immediately
+        setMilestone(prev => ({ ...prev, detailedContent: " " }));
+        
+        let streamedContent = "";
         try {
-            const result = await llmService.generateMilestoneContent(m);
-            if (result && result.detailedContent) {
-                updateMilestone(m.id, { detailedContent: result.detailedContent });
-                setMilestone(prev => ({ ...prev, detailedContent: result.detailedContent }));
+            const prompt = `
+      You are an expert tutor creating detailed educational content for a specific milestone.
+      Milestone Title: "${m.title}"
+      Topics to cover: ${JSON.stringify(m.topics)}
+      
+      Generate a comprehensive, explanatory tutorial for this milestone.
+      This content should be educational and explain the concepts clearly. It should be suitable for a student to learn from directly.
+      Output ONLY raw markdown text. Do not wrap in JSON.
+            `.trim();
+            
+            let buffer = "";
+            let displayContent = "";
+            let isStreamDone = false;
+            
+            const stream = llmService.streamGenericContent(prompt);
+            
+            // Network Loop
+            (async () => {
+                try {
+                    for await (const chunk of stream) { buffer += chunk; }
+                } catch(e) { console.error("Stream disrupted:", e); } 
+                finally { isStreamDone = true; }
+            })();
+
+            // UI Typewriter Loop (Smooth framerate)
+            while (!isStreamDone || displayContent.length < buffer.length) {
+                if (displayContent.length < buffer.length) {
+                    // Add characters progressively
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    displayContent += stepText;
+                    setMilestone(prev => ({ ...prev, detailedContent: displayContent }));
+                }
+                await new Promise(r => setTimeout(r, 15));
+            }
+            
+            // Persist the permanently completed content to database
+            if (displayContent) {
+                updateMilestone(m.id, { detailedContent: displayContent });
             }
         } catch (err) {
-            console.error("Failed to generate detailed content", err);
+            console.error("Failed to stream detailed content", err);
+            setMilestone(prev => ({ ...prev, detailedContent: "Failed to load content. Please refresh." }));
         } finally {
             setGeneratingContent(false);
         }
@@ -82,25 +121,67 @@ function MilestoneDetail() {
                 setActionFile(null);
             }
 
-            const data = await llmService.personalizeContent(selection.text, promptText, milestone.detailedContent);
-            if (data && data.replacementText) {
-                const targetText = data.originalTextToReplace || selection.text;
-                let newContent = milestone.detailedContent;
-                
-                if (newContent.includes(targetText)) {
-                    newContent = newContent.replace(targetText, data.replacementText);
-                } else if (newContent.includes(selection.text)) {
-                    newContent = newContent.replace(selection.text, data.replacementText);
-                } else {
-                    console.warn("Could not find exact text to replace. Appending to bottom as fallback.");
-                    newContent += `\n\n### Personalized Addition\n${data.replacementText}`;
-                }
+            let prompt = `
+You are an expert tutor. The student selected this text from their lesson:
+"${selection.text}"
 
-                updateMilestone(id, { detailedContent: newContent });
-                setMilestone(prev => ({ ...prev, detailedContent: newContent }));
-                closeModals();
+Here is the full lesson context:
+"${milestone.detailedContent}"
+
+Student's instruction to change the selected text:
+"${promptText}"
+
+Please rewrite ONLY the selected text according to the student's instruction. 
+Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quotes or JSON.
+            `.trim();
+
+            let targetText = selection.text;
+            let currentContentSnapshot = milestone.detailedContent;
+            const exactMatchFound = currentContentSnapshot.includes(targetText);
+
+            let buffer = "";
+            let displayContent = "";
+            let isStreamDone = false;
+            
+            const stream = llmService.streamGenericContent(prompt);
+            
+            (async () => {
+                try {
+                    for await (const chunk of stream) { buffer += chunk; }
+                } catch(e) { console.error(e); } 
+                finally { isStreamDone = true; }
+            })();
+            
+            while (!isStreamDone || displayContent.length < buffer.length) {
+                if (displayContent.length < buffer.length) {
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    displayContent += stepText;
+                    
+                    let updatedUI = currentContentSnapshot;
+                    if (exactMatchFound) {
+                        updatedUI = currentContentSnapshot.replace(targetText, `**⏳ Personalizing:**\n*${displayContent}*`);
+                    } else {
+                        updatedUI += `\n\n### ⏳ Personalizing Selection...\n*${displayContent}*`;
+                    }
+                    setMilestone(prev => ({ ...prev, detailedContent: updatedUI }));
+                }
+                await new Promise(r => setTimeout(r, 15));
             }
+            
+            // Finalize the replacement without glowing wrappers
+            let finalContent = currentContentSnapshot;
+            if (exactMatchFound) {
+                finalContent = currentContentSnapshot.replace(targetText, displayContent);
+            } else {
+                finalContent += `\n\n### Personalized Addition\n${displayContent}`;
+            }
+
+            updateMilestone(id, { detailedContent: finalContent });
+            setMilestone(prev => ({ ...prev, detailedContent: finalContent }));
+            closeModals();
+
         } catch (err) {
+            console.error("Personalization Stream Error", err);
             setActionState(prev => ({ ...prev, loading: false, error: 'Failed to personalize content.' }));
         }
     };
@@ -123,17 +204,50 @@ function MilestoneDetail() {
         }));
         
         try {
-            const data = await llmService.getDoubtAnswer(questionText);
-            if (data && data.answer) {
-                 setActionState(prev => ({ 
-                     ...prev, 
-                     loading: false, 
-                     chatHistory: [...prev.chatHistory, { role: 'ai', content: data.answer }]
-                 }));
-                 // Save messages to backend
-                 saveChatToBackend('user', questionText, threadIdToUse);
-                 saveChatToBackend('ai', data.answer, threadIdToUse);
+            // Add empty AI message placeholder for streaming
+             setActionState(prev => ({ 
+                 ...prev, 
+                 chatHistory: [...prev.chatHistory, { role: 'ai', content: '' }]
+             }));
+
+            let buffer = "";
+            let displayContent = "";
+            let isStreamDone = false;
+
+            const syntheticPrompt = `Regarding this exact snippet: "${selection.text}"\n\nStudent asks: ${questionText}`;
+            console.log(`[AskModal] Sending synthetic prompt to stream API:\n${syntheticPrompt}`);
+            
+            const stream = llmService.streamDoubtAnswer(syntheticPrompt);
+            
+            (async () => {
+                try {
+                    for await (const chunk of stream) { buffer += chunk; }
+                } catch(e) { console.error(e); } 
+                finally { isStreamDone = true; }
+            })();
+            
+            while (!isStreamDone || displayContent.length < buffer.length) {
+                if (displayContent.length < buffer.length) {
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    displayContent += stepText;
+                    setActionState(prev => {
+                        const newHistory = [...prev.chatHistory];
+                        const lastIndex = newHistory.length - 1;
+                        newHistory[lastIndex] = { ...newHistory[lastIndex], content: displayContent };
+                        return { ...prev, chatHistory: newHistory };
+                    });
+                }
+                await new Promise(r => setTimeout(r, 15));
             }
+            
+            console.log(`[AskModal] Stream generation completed successfully. Total length: ${displayContent.length} chars.`);
+
+            setActionState(prev => ({ ...prev, loading: false }));
+            
+            // Save messages to backend once complete
+            saveChatToBackend('user', questionText, threadIdToUse);
+            saveChatToBackend('ai', displayContent, threadIdToUse);
+
         } catch (err) {
             setActionState(prev => ({ ...prev, loading: false, error: 'Failed to get answer.' }));
         }

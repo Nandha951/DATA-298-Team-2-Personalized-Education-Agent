@@ -59,18 +59,45 @@ function DoubtChat({ milestoneId }) {
         saveMessage('user', currentInput);
 
         try {
-            // Use the new secure RAG backend service
-            const data = await llmService.getDoubtAnswer(currentInput);
+            // Add empty AI message placeholder for streaming
+            setMessages(prev => [...prev, { role: 'ai', content: '' }]);
 
-            const aiContent = data.answer || "Sorry, I couldn't get an answer.";
-            const aiMessage = { role: 'ai', content: aiContent };
+            let buffer = "";
+            let displayContent = "";
+            let isStreamDone = false;
+
+            const stream = llmService.streamDoubtAnswer(currentInput);
             
-            setMessages(prev => [...prev, aiMessage]);
-            saveMessage('ai', aiContent);
+            (async () => {
+                try {
+                    for await (const chunk of stream) { buffer += chunk; }
+                } catch(e) { console.error(e); } 
+                finally { isStreamDone = true; }
+            })();
+            
+            while (!isStreamDone || displayContent.length < buffer.length) {
+                if (displayContent.length < buffer.length) {
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    displayContent += stepText;
+                    setMessages(prev => {
+                        const newMessages = [...prev];
+                        const lastIndex = newMessages.length - 1;
+                        newMessages[lastIndex] = { ...newMessages[lastIndex], content: displayContent };
+                        return newMessages;
+                    });
+                }
+                await new Promise(r => setTimeout(r, 15));
+            }
+
+            saveMessage('ai', displayContent);
         } catch (err) {
             console.error('Error asking question:', err);
             const errorMessage = { role: 'ai', content: err.message || 'Connection error. Please try again later.' };
-            setMessages(prev => [...prev, errorMessage]);
+            setMessages(prev => {
+                const newMessages = [...prev];
+                newMessages[newMessages.length - 1] = errorMessage; // Replace empty stream placeholder
+                return newMessages;
+            });
         } finally {
             setLoading(false);
         }

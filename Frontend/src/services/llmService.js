@@ -59,7 +59,7 @@ export const llmService = {
     },
 
     async getDoubtAnswer(question) {
-        // Now queries the full RAG memory structure via Vector DB instead of relying on frontend states
+        // Fallback for non-streaming components
         const token = localStorage.getItem('auth_token');
         const response = await fetch('/api/ai/ask-rag', {
             method: 'POST',
@@ -77,19 +77,67 @@ export const llmService = {
         return response.json(); 
     },
 
-    async getQuiz(milestoneContext, type) {
+    async *streamDoubtAnswer(question) {
+        const token = localStorage.getItem('auth_token');
+        const response = await fetch('/api/ai/stream-rag', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` 
+            },
+            body: JSON.stringify({ question }) // Stream endpoint expects raw Text
+        });
+        
+        if (!response.ok) {
+            throw new Error('Stream request failed');
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            yield decoder.decode(value, { stream: true });
+        }
+    },
+
+    async *streamGenericContent(prompt) {
+        const response = await fetch('/api/ai/stream-generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt })
+        });
+        if (!response.ok) throw new Error('Stream request failed');
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            yield decoder.decode(value, { stream: true });
+        }
+    },
+
+    async generateNextQuizQuestion(milestoneContext, type, pastHistory = []) {
         const { title, topics, content } = milestoneContext;
+        
+        const pastContext = pastHistory.map((q, i) => `Q${i+1}: ${q.text} (Student got it ${q.isCorrect ? 'right' : 'wrong'})`).join('\n');
+
         const prompt = `
-      Generate 3 multiple choice questions for a quiz on the milestone titled: "${title}".
+      You are an expert tutor creating a dynamic quiz for the milestone titled: "${title}".
       Key topics: ${JSON.stringify(topics)}.
-      Content context: "${content ? content.substring(0, 1000) : 'General knowledge on this topic'}".
+      Content context: "${content ? content.substring(0, 1500) : 'General knowledge on this topic'}".
       
-      Type: ${type} (initial assessment or follow-up).
+      Type of Quiz: ${type}.
       
-      The questions must be specific to the content provided above. Avoid generic questions.
+      Past History of this session:
+      ${pastHistory.length > 0 ? "The student has answered the following questions:\n" + pastContext + "\n\nCRITICAL: DO NOT repeat any of these questions. If the student got previous questions wrong, generate a question targeting the same concept but phrased differently to reinforce learning. If they got it right, move to a harder concept or a different topic from the milestone." : "This is the first question. Start with a foundational concept."}
       
-      Return as JSON object with a key "questions".
-      Each question: { id, text, options: [], correctAnswer, explanation }.
+      Generate exactly ONE multiple choice question.
+      Return as JSON object with a key "question".
+      Format: { text: "Question text", options: ["A", "B", "C", "D"], correctAnswer: "exact string of correct option", explanation: "Why it is correct" }.
     `;
         return generateFromBackend(prompt);
     },
