@@ -184,5 +184,25 @@ export const llmService = {
       - "replacementText": The new rewritten text.
     `;
         return generateFromBackend(prompt);
+    },
+
+    async visualizeExplanation(explanation) {
+        const prompt = `
+      Convert the following educational explanation into a comprehensive Mermaid.js diagram (e.g. flowchart TD, mindmap).
+      Make sure to use strict valid Mermaid syntax.
+      
+      CRITICAL MERMAID SYNTAX RULES:
+      1. Node IDs MUST be simple alphanumeric without special characters (e.g., A, B, C).
+      2. If node labels contain spaces, brackets, or special characters, you MUST wrap the label in double quotes (e.g., A["Focuses on The Big Picture"]).
+      3. DO NOT put unescaped double quotes inside of string labels. Use single quotes instead if quoting is necessary inside the label (e.g., A["Focuses on 'The Big Picture'"]).
+      4. DO NOT use characters like -, +, or parenthesis inside node IDs, only in the quoted labels.
+      5. Output ONLY the raw Mermaid code block.
+      
+      Explanation text:
+      "${explanation}"
+      
+      Return as a JSON object with a key "mermaidCode" containing the raw mermaid code string.
+    `;
+        return generateFromBackend(prompt);
     }
 };

@@ -1,10 +1,28 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import { llmService } from '../../services/llmService';
+import MermaidChart from '../Shared/MermaidChart';
 
 function Question({ question, onSubmit }) {
     const [selected, setSelected] = useState(null);
     const [submitted, setSubmitted] = useState(false);
     const [explanation, setExplanation] = useState('');
+    const [diagramCode, setDiagramCode] = useState('');
+    const [loadingDiagram, setLoadingDiagram] = useState(false);
+
+    const handleVisualize = async () => {
+        setLoadingDiagram(true);
+        try {
+            const data = await llmService.visualizeExplanation(explanation);
+            if (data && data.mermaidCode) {
+                const cleanedCode = data.mermaidCode.replace(/```mermaid/gi, "").replace(/```/g, "").trim();
+                setDiagramCode(cleanedCode);
+            }
+        } catch (err) {
+            console.error("Diagram error", err);
+        }
+        setLoadingDiagram(false);
+    };
 
     const handleSubmit = async () => {
         setSubmitted(true);
@@ -50,6 +68,24 @@ function Question({ question, onSubmit }) {
                 <div className="explanation-panel">
                     <h3>Explanation</h3>
                     <p>{explanation}</p>
+                    
+                    {explanation && !diagramCode && (
+                        <button 
+                            onClick={handleVisualize} 
+                            disabled={loadingDiagram} 
+                            className="submit-button" 
+                            style={{marginTop: '10px', backgroundColor: '#607D8B'}}
+                        >
+                            {loadingDiagram ? 'Generating Visualization...' : 'Visualize Explanation'}
+                        </button>
+                    )}
+                    
+                    {diagramCode && (
+                        <div style={{marginTop: '15px'}}>
+                            <h4>Visualization</h4>
+                            <MermaidChart chartCode={diagramCode} />
+                        </div>
+                    )}
                 </div>
             )}
         </div>

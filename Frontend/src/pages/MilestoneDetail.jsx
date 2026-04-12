@@ -7,6 +7,7 @@ import { llmService } from '../services/llmService';
 import { llamaParseService } from '../services/llamaParseService';
 import ReactMarkdown from 'react-markdown';
 import PathAdjuster from '../components/LearningPath/PathAdjuster';
+import MermaidChart from '../components/Shared/MermaidChart';
 
 function MilestoneDetail() {
     const { id } = useParams();
@@ -253,6 +254,62 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
         }
     };
 
+    const handleOpenAskHistory = async () => {
+        setActionState({ type: 'ask', loading: true, result: '', chatHistory: [], error: '', activeThreadId: null, threads: {} });
+        setSelection({ text: '', x: 0, y: 0 });
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                const res = await fetch(`/api/chats/${id}/threads`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const threadsData = await res.json();
+                    const nextActiveId = Object.keys(threadsData)[0] || null;
+                    setActionState(prev => ({ 
+                        ...prev, 
+                        loading: false,
+                        threads: threadsData,
+                        activeThreadId: nextActiveId,
+                        chatHistory: nextActiveId ? threadsData[nextActiveId] : []
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load chat history", e);
+            setActionState(prev => ({ ...prev, loading: false }));
+        }
+    };
+
+    const handleOpenVisualHistory = async () => {
+        setActionState({ type: 'visualize', loading: true, result: '', chatHistory: [], error: '', activeThreadId: null, threads: {} });
+        setSelection({ text: '', x: 0, y: 0 });
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                const res = await fetch(`/api/chats/${id}/visualize-threads`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const threadsData = await res.json();
+                    const nextActiveId = Object.keys(threadsData)[0] || null;
+                    const defaultHistory = nextActiveId ? threadsData[nextActiveId] : [];
+                    setActionState(prev => ({ 
+                        ...prev, 
+                        loading: false,
+                        threads: threadsData,
+                        activeThreadId: nextActiveId,
+                        chatHistory: defaultHistory,
+                        result: defaultHistory.find(m => m.role === 'ai')?.content || ''
+                    }));
+                }
+            }
+        } catch (e) {
+            console.error("Visualize history fetch error", e);
+            setActionState(prev => ({ ...prev, loading: false }));
+        }
+    };
+
     const saveChatToBackend = async (role, content, threadId) => {
         const token = localStorage.getItem('auth_token');
         if (!token) return;
@@ -270,6 +327,47 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ role, content, contextRef: threadId })
         });
+    };
+
+    const handleVisualizeHighlight = async () => {
+        const newThreadId = `${id}_visualize_${Date.now()}`;
+        setActionState({ type: 'visualize', loading: true, result: '', chatHistory: [], error: '', activeThreadId: newThreadId, threads: {} });
+        
+        try {
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                const res = await fetch(`/api/chats/${id}/visualize-threads`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const threadsData = await res.json();
+                    setActionState(prev => ({ ...prev, threads: threadsData }));
+                }
+            }
+        } catch (e) {
+            console.error("Visualize history fetch error", e);
+        }
+
+        try {
+            const data = await llmService.visualizeExplanation(selection.text);
+            if (data && data.mermaidCode) {
+                const cleanedCode = data.mermaidCode.replace(/```mermaid/gi, "").replace(/```/g, "").trim();
+                
+                // Fire and forget saves
+                saveChatToBackend('user', selection.text, newThreadId);
+                saveChatToBackend('ai', cleanedCode, newThreadId);
+                
+                setActionState(prev => ({ ...prev, loading: false, result: cleanedCode, chatHistory: [
+                   { role: 'user', content: selection.text },
+                   { role: 'ai', content: cleanedCode }
+                ]}));
+            } else {
+                setActionState(prev => ({ ...prev, loading: false }));
+            }
+        } catch (err) {
+            console.error("Visualize Error", err);
+            setActionState(prev => ({ ...prev, loading: false, error: 'Failed to visualize content.' }));
+        }
     };
 
     const closeModals = () => {
@@ -295,8 +393,24 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
         <div className="milestone-detail-page">
             <Navbar />
             <div className="content-container">
-                <Link to="/dashboard" className="back-link">← Back to Dashboard</Link>
-                <h1>{milestone.title}</h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <Link to="/dashboard" className="back-link" style={{ margin: 0 }}>← Back to Dashboard</Link>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                        <button 
+                            onClick={handleOpenAskHistory}
+                            style={{ padding: '8px 12px', background: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                        >
+                            View Q&A History
+                        </button>
+                        <button 
+                            onClick={handleOpenVisualHistory}
+                            style={{ padding: '8px 12px', background: '#f3e5f5', color: '#7b1fa2', border: '1px solid #e1bee7', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
+                        >
+                            View Visualizations
+                        </button>
+                    </div>
+                </div>
+                <h1 style={{ marginTop: 0 }}>{milestone.title}</h1>
 
                 <PathAdjuster />
 
@@ -321,7 +435,19 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                             onMouseUp={handleMouseUp}
                         >
                             {milestone.detailedContent ? (
-                                <ReactMarkdown>{milestone.detailedContent}</ReactMarkdown>
+                                <ReactMarkdown
+                                    components={{
+                                        code({node, inline, className, children, ...props}) {
+                                            const match = /language-(\w+)/.exec(className || '');
+                                            if (!inline && match && match[1] === 'mermaid') {
+                                                return <MermaidChart chartCode={String(children).replace(/\n$/, '')} />;
+                                            }
+                                            return <code className={className} {...props}>{children}</code>;
+                                        }
+                                    }}
+                                >
+                                    {milestone.detailedContent}
+                                </ReactMarkdown>
                             ) : (
                                 <p>{milestone.content || "Content is being prepared..."}</p>
                             )}
@@ -381,6 +507,12 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                 >
                                     Personalize Content
                                 </button>
+                                <button 
+                                    onClick={handleVisualizeHighlight}
+                                    style={{ background: 'transparent', color: 'white', border: 'none', borderLeft: '1px solid #555', padding: '5px 10px', cursor: 'pointer' }}
+                                >
+                                    {actionState.type === 'visualize' && actionState.loading ? 'Visualizing...' : 'Visualize It'}
+                                </button>
                             </div>
                         )}
 
@@ -407,27 +539,29 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                     overflow: 'hidden'
                                 }}>
                                     {/* Sidebar for Past Threads */}
-                                    {actionState.type === 'ask' && (
+                                    {(actionState.type === 'ask' || actionState.type === 'visualize') && (
                                         <div style={{ width: '280px', background: '#f5f7fa', borderRight: '1px solid #ddd', padding: '15px', overflowY: 'auto' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                                <h3 style={{ margin: 0, fontSize: '18px' }}>Chat History</h3>
-                                                <button 
-                                                    onClick={() => {
-                                                        const newThreadId = `${id}_selection_${Date.now()}`;
-                                                        setActionState(prev => ({ 
-                                                            ...prev, 
-                                                            activeThreadId: newThreadId,
-                                                            chatHistory: [] // Blank slate
-                                                        }));
-                                                    }}
-                                                    style={{ padding: '6px 12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-                                                >
-                                                    + New Text Chat
-                                                </button>
+                                                <h3 style={{ margin: 0, fontSize: '18px' }}>{actionState.type === 'ask' ? 'Chat History' : 'Visual History'}</h3>
+                                                {actionState.type === 'ask' && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            const newThreadId = `${id}_selection_${Date.now()}`;
+                                                            setActionState(prev => ({ 
+                                                                ...prev, 
+                                                                activeThreadId: newThreadId,
+                                                                chatHistory: [] // Blank slate
+                                                            }));
+                                                        }}
+                                                        style={{ padding: '6px 12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                    >
+                                                        + New Text Chat
+                                                    </button>
+                                                )}
                                             </div>
 
                                             {Object.keys(actionState.threads || {}).length === 0 ? (
-                                                <p style={{ color: '#888', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>No past selection chats found.</p>
+                                                <p style={{ color: '#888', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>No past {actionState.type === 'ask' ? 'chats' : 'visualizations'} found.</p>
                                             ) : (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     {Object.entries(actionState.threads || {}).map(([threadId, messages]) => {
@@ -441,7 +575,8 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                                     setActionState(prev => ({
                                                                         ...prev,
                                                                         activeThreadId: threadId,
-                                                                        chatHistory: messages
+                                                                        chatHistory: messages,
+                                                                        result: prev.type === 'visualize' ? (messages.find(m => m.role === 'ai')?.content || '') : prev.result
                                                                     }));
                                                                 }}
                                                                 style={{ 
@@ -468,7 +603,10 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                     {/* Main Chat Area */}
                                     <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                            <h3 style={{ margin: 0 }}>{actionState.type === 'ask' ? 'Ask a Question about Highlighted Text' : 'Personalize Content'}</h3>
+                                            <h3 style={{ margin: 0 }}>
+                                                {actionState.type === 'ask' ? 'Ask a Question about Highlighted Text' : 
+                                                 actionState.type === 'visualize' ? 'Visualize Highlighted Concept' : 'Personalize Content'}
+                                            </h3>
                                             <button 
                                                 onClick={closeModals} 
                                                 style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}
@@ -477,9 +615,23 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                             </button>
                                         </div>
                                         
-                                        <p style={{ fontStyle: 'italic', color: '#666', marginBottom: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '6px', borderLeft: '3px solid #ccc' }}>
-                                            Selection Context: "{selection.text.substring(0, 100)}{selection.text.length > 100 ? '...' : ''}"
-                                        </p>
+                                        {(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text) && (
+                                            <p style={{ fontStyle: 'italic', color: '#666', marginBottom: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '6px', borderLeft: '3px solid #ccc' }}>
+                                                Selection Context: "{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).substring(0, 100)}{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).length > 100 ? '...' : ''}"
+                                            </p>
+                                        )}
+
+                                        {actionState.type === 'visualize' && (
+                                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                                                {actionState.loading ? (
+                                                    <div className="spinner" style={{ marginBottom: '10px' }}></div>
+                                                ) : actionState.result ? (
+                                                    <div style={{ width: '100%', overflowX: 'auto', border: '1px solid #eee', borderRadius: '8px', padding: '10px' }}>
+                                                        <MermaidChart chartCode={actionState.result} />
+                                                    </div>
+                                                ) : null}
+                                            </div>
+                                        )}
 
                                         {actionState.type === 'ask' && actionState.chatHistory.length > 0 && (
                                             <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px', flex: 1 }}>
@@ -499,31 +651,33 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                             </div>
                                         )}
 
-                                        <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto' }}>
-                                            <textarea 
-                                                value={actionInput}
-                                                onChange={(e) => setActionInput(e.target.value)}
-                                                placeholder={actionState.type === 'ask' ? "Type your question here..." : "e.g., Explain this using an analogy?"}
-                                                rows="3"
-                                                style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', width: '100%', resize: 'vertical' }}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                                        e.preventDefault();
-                                                        if (actionInput.trim() && !actionState.loading) {
-                                                            actionState.type === 'ask' ? handleAsk() : handlePersonalize();
+                                        {actionState.type !== 'visualize' && (
+                                            <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto' }}>
+                                                <textarea 
+                                                    value={actionInput}
+                                                    onChange={(e) => setActionInput(e.target.value)}
+                                                    placeholder={actionState.type === 'ask' ? "Type your question here..." : "e.g., Explain this using an analogy?"}
+                                                    rows="3"
+                                                    style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', width: '100%', resize: 'vertical' }}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                                            e.preventDefault();
+                                                            if (actionInput.trim() && !actionState.loading) {
+                                                                actionState.type === 'ask' ? handleAsk() : handlePersonalize();
+                                                            }
                                                         }
-                                                    }
-                                                }}
-                                            />
-                                            
-                                            <button 
-                                                onClick={actionState.type === 'ask' ? handleAsk : handlePersonalize}
-                                                disabled={(!actionInput.trim()) || actionState.loading}
-                                                style={{ width: '100%', padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
-                                            >
-                                                {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Send' : 'Replace & Personalize')}
-                                            </button>
-                                        </div>
+                                                    }}
+                                                />
+                                                
+                                                <button 
+                                                    onClick={actionState.type === 'ask' ? handleAsk : handlePersonalize}
+                                                    disabled={(!actionInput.trim()) || actionState.loading}
+                                                    style={{ width: '100%', padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                >
+                                                    {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Send' : 'Replace & Personalize')}
+                                                </button>
+                                            </div>
+                                        )}
                                         {actionState.error && <p style={{ color: '#d32f2f', marginTop: '15px', textAlign: 'center' }}>{actionState.error}</p>}
                                     </div>
                                 </div>
@@ -532,7 +686,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                         
                     </div>
 
-                    <div className="actions-section" style={{ margin: '2rem 0' }}>
+                    <div className="actions-section" style={{ margin: '2rem 0', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
                         {milestone.detailedContent && (
                             <Link to={`/quiz/${id}/initial`}>
                                 <button className="quiz-btn">Take Initial Quiz</button>
