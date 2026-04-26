@@ -12,6 +12,7 @@ export default function MermaidChart({ chartCode }) {
 
         const renderChart = async () => {
             setError('');
+            const id = 'mermaid-' + Math.random().toString(36).substring(7);
             try {
                 if (!window.mermaid) {
                     if (!mermaidPromise) {
@@ -29,15 +30,23 @@ export default function MermaidChart({ chartCode }) {
                 const mermaid = window.mermaid;
                 if(mermaid) mermaid.initialize({ startOnLoad: false, theme: 'default', suppressErrorRendering: true });
                 
-                // generate a safe id
-                const id = 'mermaid-' + Math.random().toString(36).substring(7);
                 const { svg } = await mermaid.render(id, chartCode);
                 if (containerRef.current) {
                     containerRef.current.innerHTML = svg;
                 }
             } catch (err) {
                 console.error("Mermaid error:", err);
-                setError(err.message);
+                setError(err.message || 'Syntax error in Mermaid chart.');
+                
+                // Mermaid v10 leaves the error SVG bomb attached to the document body when it throws
+                try {
+                    const errorSvg = document.getElementById('d' + id);
+                    if (errorSvg) {
+                        errorSvg.remove();
+                    }
+                } catch (e) {
+                    // Ignore cleanup errors
+                }
             }
         };
 

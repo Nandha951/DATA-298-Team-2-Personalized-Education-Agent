@@ -104,27 +104,30 @@ function DoubtChat({ milestoneId }) {
     };
 
     return (
-        <div className="doubt-chat">
-            <div className="chat-header">Your Tutor AI - Specialized Memory</div>
+        <div className="doubt-chat" style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: 0, border: 'none', boxShadow: 'none', background: 'transparent' }}>
+            <div className="chat-header" style={{ flexShrink: 0, background: 'transparent', borderBottom: '1px solid var(--border-color)', padding: '0 0 10px 0', fontFamily: 'Outfit', color: 'var(--text-main)' }}>Your Tutor AI - Specialized Memory</div>
 
-            <div className="messages-container" style={{ maxHeight: '400px', overflowY: 'auto', padding: '10px' }}>
+            <div className="messages-container" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '15px 5px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'transparent' }}>
                 {messages.map((msg, i) => (
                     <div key={i} className={`message ${msg.role}`} style={{ 
-                        marginBottom: '15px', 
-                        padding: '10px', 
-                        borderRadius: '8px',
-                        background: msg.role === 'ai' ? '#f0f4f8' : '#e3f2fd',
-                        borderLeft: msg.role === 'ai' ? '4px solid #1976d2' : '4px solid #2196f3'
+                        padding: '12px 16px', 
+                        borderRadius: '12px',
+                        background: msg.role === 'ai' ? 'var(--surface-color)' : 'var(--primary-light)',
+                        border: msg.role === 'ai' ? '1px solid var(--border-color)' : 'none',
+                        color: msg.role === 'ai' ? 'var(--text-main)' : 'var(--primary-hover)',
+                        alignSelf: msg.role === 'ai' ? 'flex-start' : 'flex-end',
+                        maxWidth: '90%',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
                     }}>
-                        <div className="markdown-body">
+                        <div className="markdown-body" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
                             <ReactMarkdown>{msg.content}</ReactMarkdown>
                         </div>
                     </div>
                 ))}
-                {loading && <div className="loading">AI is looking up your documents...</div>}
+                {loading && <div className="loading" style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>AI is looking up your documents...</div>}
             </div>
 
-            <div className="input-container" style={{ display: 'flex', gap: '8px', padding: '10px', borderTop: '1px solid #eee' }}>
+            <div className="input-container" style={{ flexShrink: 0, display: 'flex', gap: '8px', padding: '15px 0 0 0', borderTop: '1px solid var(--border-color)', background: 'transparent' }}>
                 <input
                     type="text"
                     value={input}
@@ -132,11 +135,11 @@ function DoubtChat({ milestoneId }) {
                     onKeyPress={(e) => {
                         if (e.key === 'Enter') handleAsk();
                     }}
-                    placeholder="Ask a question about this milestone..."
+                    placeholder="Ask about this milestone..."
                     disabled={loading}
-                    style={{ flex: 1, padding: '10px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--surface-color)', minWidth: 0, fontSize: '0.9rem', fontFamily: 'Inter' }}
                 />
-                <button onClick={handleAsk} disabled={loading || !input.trim()} style={{ padding: '8px 16px', background: '#2196f3', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                <button onClick={handleAsk} disabled={loading || !input.trim()} style={{ padding: '8px 16px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', flexShrink: 0, fontWeight: '600' }}>
                     Send
                 </button>
             </div>

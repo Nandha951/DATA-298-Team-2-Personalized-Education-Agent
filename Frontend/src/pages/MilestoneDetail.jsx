@@ -392,46 +392,59 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
     return (
         <div className="milestone-detail-page">
             <Navbar />
-            <div className="content-container">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <Link to="/dashboard" className="back-link" style={{ margin: 0 }}>← Back to Dashboard</Link>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                        <button 
-                            onClick={handleOpenAskHistory}
-                            style={{ padding: '8px 12px', background: '#e3f2fd', color: '#1565c0', border: '1px solid #bbdefb', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-                        >
-                            View Q&A History
-                        </button>
-                        <button 
-                            onClick={handleOpenVisualHistory}
-                            style={{ padding: '8px 12px', background: '#f3e5f5', color: '#7b1fa2', border: '1px solid #e1bee7', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
-                        >
-                            View Visualizations
-                        </button>
-                    </div>
-                </div>
-                <h1 style={{ marginTop: 0 }}>{milestone.title}</h1>
-
-                <PathAdjuster />
-
-                <div className="milestone-content">
-                    <div className="topics-section">
-                        <h2>Topics Covered</h2>
-                        <ul>
+            <div className="content-container" style={{ 
+                display: 'grid', 
+                gridTemplateColumns: '240px minmax(0, 1fr) 300px', 
+                gap: '30px', 
+                maxWidth: '100%', 
+                margin: '0 auto', 
+                padding: '0 2%',
+                alignItems: 'start'
+            }}>
+                
+                {/* Left Sidebar */}
+                <div className="left-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'sticky', top: '20px', height: 'calc(100vh - 40px)', overflowY: 'auto', paddingBottom: '10px' }}>
+                    <div style={{ padding: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                        <Link to="/dashboard" className="back-link" style={{ margin: 0, display: 'inline-block', marginBottom: '20px', color: 'var(--primary)', textDecoration: 'none', fontWeight: '600' }}>← Back to Dashboard</Link>
+                        
+                        <h3 style={{ fontSize: '1.2rem', marginBottom: '12px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>Topics Covered</h3>
+                        <ul style={{ paddingLeft: '20px', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {milestone.topics && milestone.topics.map((topic, i) => (
-                                <li key={i}>{topic}</li>
+                                <li key={i} style={{ fontSize: '0.95rem' }}>{topic}</li>
                             ))}
                         </ul>
+                    </div>
+                    
+                    <div style={{ padding: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                        <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>Learning Path</h3>
+                        <PathAdjuster />
+                    </div>
+                </div>
 
+                {/* Main Content */}
+                <div className="main-content" style={{ background: 'var(--surface-color)', padding: '40px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
+                    <h1 style={{ 
+                        marginTop: 0, 
+                        marginBottom: '30px', 
+                        fontSize: '2.5rem', 
+                        background: 'linear-gradient(135deg, var(--primary), var(--secondary))', 
+                        WebkitBackgroundClip: 'text', 
+                        WebkitTextFillColor: 'transparent' 
+                    }}>
+                        {milestone.title}
+                    </h1>
+
+                    <div className="milestone-content">
                         {generatingContent && !milestone.detailedContent && (
-                            <div className="loading-content">
-                                Generating detailed lesson... This may take a few seconds.
+                            <div className="loading-content" style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '20px', background: 'var(--primary-light)', borderRadius: '8px', color: 'var(--primary)' }}>
+                                <div className="spinner" style={{ width: '24px', height: '24px', borderWidth: '3px' }}></div>
+                                <strong>Generating detailed lesson... This may take a few seconds.</strong>
                             </div>
                         )}
 
                         <div 
-                            className="content-text" 
-                            style={{ margin: '1rem 0', lineHeight: '1.8', position: 'relative' }}
+                            className="content-text markdown-body" 
+                            style={{ margin: '1rem 0', lineHeight: '1.8', position: 'relative', fontSize: '1.05rem', color: 'var(--text-main)' }}
                             onMouseUp={handleMouseUp}
                         >
                             {milestone.detailedContent ? (
@@ -462,14 +475,16 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                     top: `${selection.y}px`,
                                     left: `${selection.x}px`,
                                     transform: 'translate(-50%, -100%)',
-                                    background: '#333',
+                                    background: 'rgba(15, 23, 42, 0.95)',
+                                    backdropFilter: 'blur(8px)',
                                     color: 'white',
-                                    padding: '8px',
-                                    borderRadius: '8px',
+                                    padding: '6px',
+                                    borderRadius: '12px',
                                     display: 'flex',
-                                    gap: '10px',
+                                    gap: '4px',
                                     zIndex: 1000,
-                                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                                    border: '1px solid rgba(255,255,255,0.1)'
                                 }}
                             >
                                 <button 
@@ -497,19 +512,27 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                         }
                                         setActionState(prev => ({ ...prev, loading: false }));
                                     }}
-                                    style={{ background: 'transparent', color: 'white', border: 'none', padding: '5px 10px', cursor: 'pointer' }}
+                                    style={{ background: 'transparent', color: 'white', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '8px', fontSize: '0.9rem' }}
+                                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                                 >
                                     Ask Question
                                 </button>
+                                <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '4px 0' }}></div>
                                 <button 
                                     onClick={() => setActionState({ type: 'personalize', loading: false, result: '', chatHistory: [], error: '' })}
-                                    style={{ background: 'transparent', color: 'white', border: 'none', borderLeft: '1px solid #555', padding: '5px 10px', cursor: 'pointer' }}
+                                    style={{ background: 'transparent', color: 'white', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '8px', fontSize: '0.9rem' }}
+                                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                                 >
                                     Personalize Content
                                 </button>
+                                <div style={{ width: '1px', background: 'rgba(255,255,255,0.2)', margin: '4px 0' }}></div>
                                 <button 
                                     onClick={handleVisualizeHighlight}
-                                    style={{ background: 'transparent', color: 'white', border: 'none', borderLeft: '1px solid #555', padding: '5px 10px', cursor: 'pointer' }}
+                                    style={{ background: 'transparent', color: 'white', border: 'none', padding: '8px 12px', cursor: 'pointer', borderRadius: '8px', fontSize: '0.9rem' }}
+                                    onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                                    onMouseOut={e => e.currentTarget.style.background = 'transparent'}
                                 >
                                     {actionState.type === 'visualize' && actionState.loading ? 'Visualizing...' : 'Visualize It'}
                                 </button>
@@ -521,28 +544,30 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                             <div className="action-modal-overlay" style={{
                                 position: 'fixed',
                                 top: 0, left: 0, right: 0, bottom: 0,
-                                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                                backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                                backdropFilter: 'blur(4px)',
                                 display: 'flex',
                                 justifyContent: 'center',
                                 alignItems: 'center',
                                 zIndex: 2000
                             }}>
                                 <div className="action-modal" style={{ 
-                                    background: '#fff', 
-                                    borderRadius: '12px', 
+                                    background: 'var(--surface-color)', 
+                                    borderRadius: '16px', 
                                     width: '90%', 
-                                    maxWidth: '900px',
-                                    height: '80vh',
+                                    maxWidth: '1000px',
+                                    height: '85vh',
                                     display: 'flex',
-                                    boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+                                    boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)',
                                     position: 'relative',
-                                    overflow: 'hidden'
+                                    overflow: 'hidden',
+                                    border: '1px solid var(--border-color)'
                                 }}>
                                     {/* Sidebar for Past Threads */}
                                     {(actionState.type === 'ask' || actionState.type === 'visualize') && (
-                                        <div style={{ width: '280px', background: '#f5f7fa', borderRight: '1px solid #ddd', padding: '15px', overflowY: 'auto' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                                <h3 style={{ margin: 0, fontSize: '18px' }}>{actionState.type === 'ask' ? 'Chat History' : 'Visual History'}</h3>
+                                        <div style={{ width: '300px', background: 'var(--bg-color)', borderRight: '1px solid var(--border-color)', padding: '20px', overflowY: 'auto' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                                <h3 style={{ margin: 0, fontSize: '1.1rem' }}>{actionState.type === 'ask' ? 'Chat History' : 'Visual History'}</h3>
                                                 {actionState.type === 'ask' && (
                                                     <button 
                                                         onClick={() => {
@@ -553,20 +578,19 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                                 chatHistory: [] // Blank slate
                                                             }));
                                                         }}
-                                                        style={{ padding: '6px 12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+                                                        style={{ padding: '8px 12px', background: 'var(--success)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem' }}
                                                     >
-                                                        + New Text Chat
+                                                        + New Chat
                                                     </button>
                                                 )}
                                             </div>
 
                                             {Object.keys(actionState.threads || {}).length === 0 ? (
-                                                <p style={{ color: '#888', fontSize: '14px', textAlign: 'center', marginTop: '40px' }}>No past {actionState.type === 'ask' ? 'chats' : 'visualizations'} found.</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', textAlign: 'center', marginTop: '40px' }}>No past {actionState.type === 'ask' ? 'chats' : 'visualizations'} found.</p>
                                             ) : (
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                                     {Object.entries(actionState.threads || {}).map(([threadId, messages]) => {
                                                         const isActive = actionState.activeThreadId === threadId;
-                                                        // Get snippet of the very first user message for title
                                                         const firstMsg = messages.find(m => m.role === 'user')?.content || "Empty chat";
                                                         return (
                                                             <div 
@@ -580,18 +604,19 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                                     }));
                                                                 }}
                                                                 style={{ 
-                                                                    padding: '10px', 
-                                                                    borderRadius: '6px', 
-                                                                    background: isActive ? '#e3f2fd' : 'white',
-                                                                    border: isActive ? '1px solid #90caf9' : '1px solid #eee',
+                                                                    padding: '12px', 
+                                                                    borderRadius: '8px', 
+                                                                    background: isActive ? 'var(--primary-light)' : 'white',
+                                                                    border: isActive ? '1px solid var(--primary)' : '1px solid var(--border-color)',
                                                                     cursor: 'pointer',
-                                                                    fontSize: '13px',
+                                                                    fontSize: '0.9rem',
                                                                     whiteSpace: 'nowrap',
                                                                     overflow: 'hidden',
-                                                                    textOverflow: 'ellipsis'
+                                                                    textOverflow: 'ellipsis',
+                                                                    transition: 'all 0.2s'
                                                                 }}
                                                             >
-                                                                <strong>{new Date(parseInt(threadId.split('_').pop()) || Date.now()).toLocaleDateString()}:</strong> {firstMsg}
+                                                                <strong style={{ color: isActive ? 'var(--primary-hover)' : 'var(--text-main)' }}>{new Date(parseInt(threadId.split('_').pop()) || Date.now()).toLocaleDateString()}:</strong> <span style={{ color: 'var(--text-muted)' }}>{firstMsg}</span>
                                                             </div>
                                                         );
                                                     })}
@@ -601,23 +626,23 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                     )}
 
                                     {/* Main Chat Area */}
-                                    <div style={{ flex: 1, padding: '24px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                            <h3 style={{ margin: 0 }}>
+                                    <div style={{ flex: 1, padding: '30px', display: 'flex', flexDirection: 'column', overflowY: 'auto', background: 'var(--surface-color)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                            <h3 style={{ margin: 0, fontSize: '1.4rem' }}>
                                                 {actionState.type === 'ask' ? 'Ask a Question about Highlighted Text' : 
                                                  actionState.type === 'visualize' ? 'Visualize Highlighted Concept' : 'Personalize Content'}
                                             </h3>
                                             <button 
                                                 onClick={closeModals} 
-                                                style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}
+                                                style={{ background: 'var(--bg-color)', border: '1px solid var(--border-color)', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}
                                             >
                                                 ×
                                             </button>
                                         </div>
                                         
                                         {(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text) && (
-                                            <p style={{ fontStyle: 'italic', color: '#666', marginBottom: '20px', padding: '10px', background: '#f5f5f5', borderRadius: '6px', borderLeft: '3px solid #ccc' }}>
-                                                Selection Context: "{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).substring(0, 100)}{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).length > 100 ? '...' : ''}"
+                                            <p style={{ fontStyle: 'italic', color: 'var(--text-muted)', marginBottom: '24px', padding: '16px', background: 'var(--bg-color)', borderRadius: '8px', borderLeft: '4px solid var(--primary)' }}>
+                                                <strong>Context:</strong> "{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).substring(0, 150)}{(actionState.chatHistory.find(m => m.role === 'user')?.content || selection.text).length > 150 ? '...' : ''}"
                                             </p>
                                         )}
 
@@ -626,7 +651,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                 {actionState.loading ? (
                                                     <div className="spinner" style={{ marginBottom: '10px' }}></div>
                                                 ) : actionState.result ? (
-                                                    <div style={{ width: '100%', overflowX: 'auto', border: '1px solid #eee', borderRadius: '8px', padding: '10px' }}>
+                                                    <div style={{ width: '100%', overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px', background: 'var(--bg-color)' }}>
                                                         <MermaidChart chartCode={actionState.result} />
                                                     </div>
                                                 ) : null}
@@ -634,16 +659,17 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                         )}
 
                                         {actionState.type === 'ask' && actionState.chatHistory.length > 0 && (
-                                            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '15px', flex: 1 }}>
+                                            <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
                                                 {actionState.chatHistory.map((msg, i) => (
                                                     <div key={i} style={{ 
-                                                        background: msg.role === 'ai' ? '#f8fdf8' : '#e3f2fd', 
-                                                        padding: '15px', 
-                                                        borderRadius: '8px', 
-                                                        borderLeft: msg.role === 'ai' ? '4px solid #4CAF50' : '4px solid #2196F3' 
+                                                        background: msg.role === 'ai' ? 'white' : 'var(--primary-light)', 
+                                                        padding: '20px', 
+                                                        borderRadius: '12px', 
+                                                        border: msg.role === 'ai' ? '1px solid var(--border-color)' : 'none',
+                                                        boxShadow: msg.role === 'ai' ? '0 2px 4px rgba(0,0,0,0.02)' : 'none'
                                                     }}>
-                                                        <strong style={{ color: msg.role === 'ai' ? '#2e7d32' : '#1565c0' }}>{msg.role === 'ai' ? 'Answer:' : 'You:'}</strong>
-                                                        <div style={{ marginTop: '10px', lineHeight: '1.6' }} className="markdown-body">
+                                                        <strong style={{ color: msg.role === 'ai' ? 'var(--primary)' : 'var(--primary-hover)', display: 'block', marginBottom: '10px' }}>{msg.role === 'ai' ? 'Tutor AI:' : 'You:'}</strong>
+                                                        <div style={{ lineHeight: '1.6', color: 'var(--text-main)' }} className="markdown-body">
                                                             <ReactMarkdown>{msg.content}</ReactMarkdown>
                                                         </div>
                                                     </div>
@@ -652,13 +678,13 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                         )}
 
                                         {actionState.type !== 'visualize' && (
-                                            <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto' }}>
+                                            <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto', background: 'var(--bg-color)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
                                                 <textarea 
                                                     value={actionInput}
                                                     onChange={(e) => setActionInput(e.target.value)}
                                                     placeholder={actionState.type === 'ask' ? "Type your question here..." : "e.g., Explain this using an analogy?"}
                                                     rows="3"
-                                                    style={{ padding: '12px', borderRadius: '6px', border: '1px solid #ccc', width: '100%', resize: 'vertical' }}
+                                                    style={{ padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', width: '100%', resize: 'vertical', fontFamily: 'Inter', fontSize: '1rem' }}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && !e.shiftKey) {
                                                             e.preventDefault();
@@ -672,33 +698,56 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                 <button 
                                                     onClick={actionState.type === 'ask' ? handleAsk : handlePersonalize}
                                                     disabled={(!actionInput.trim()) || actionState.loading}
-                                                    style={{ width: '100%', padding: '12px', background: '#4CAF50', color: 'white', border: 'none', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}
+                                                    style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, var(--primary), var(--primary-hover))', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer', fontSize: '1rem' }}
                                                 >
-                                                    {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Send' : 'Replace & Personalize')}
+                                                    {actionState.loading ? 'Processing...' : (actionState.type === 'ask' ? 'Send Question' : 'Replace & Personalize')}
                                                 </button>
                                             </div>
                                         )}
-                                        {actionState.error && <p style={{ color: '#d32f2f', marginTop: '15px', textAlign: 'center' }}>{actionState.error}</p>}
+                                        {actionState.error && <p style={{ color: 'var(--error)', marginTop: '15px', textAlign: 'center', fontWeight: '500' }}>{actionState.error}</p>}
                                     </div>
                                 </div>
                             </div>
                         )}
-                        
-                    </div>
-
-                    <div className="actions-section" style={{ margin: '2rem 0', display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
-                        {milestone.detailedContent && (
-                            <Link to={`/quiz/${id}/initial`}>
-                                <button className="quiz-btn">Take Initial Quiz</button>
-                            </Link>
-                        )}
-                    </div>
-
-                    <div className="doubt-section">
-                        <h2>Need Help?</h2>
-                        <DoubtChat milestoneId={id} />
                     </div>
                 </div>
+
+                {/* Right Sidebar */}
+                <div className="right-sidebar" style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'sticky', top: '20px', height: 'calc(100vh - 40px)' }}>
+                    <div style={{ padding: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                        <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>Quick Actions</h3>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                            <button 
+                                onClick={handleOpenAskHistory}
+                                style={{ width: '100%', padding: '12px', background: 'var(--bg-color)', color: 'var(--primary)', border: '1px solid var(--primary-light)', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem', fontWeight: '600' }}
+                            >
+                                💬 View Q&A History
+                            </button>
+                            <button 
+                                onClick={handleOpenVisualHistory}
+                                style={{ width: '100%', padding: '12px', background: 'var(--bg-color)', color: 'var(--secondary)', border: '1px solid #fce7f3', borderRadius: '8px', cursor: 'pointer', fontSize: '0.95rem', fontWeight: '600' }}
+                            >
+                                📊 View Visualizations
+                            </button>
+                            
+                            {milestone.detailedContent && (
+                                <Link to={`/quiz/${id}/initial`} style={{ textDecoration: 'none', marginTop: '10px' }}>
+                                    <button style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, var(--success), #059669)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', boxShadow: '0 4px 10px rgba(16, 185, 129, 0.3)' }}>
+                                        🎯 Take Initial Quiz
+                                    </button>
+                                </Link>
+                            )}
+                        </div>
+                    </div>
+
+                    <div style={{ padding: '20px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '300px' }}>
+                        <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', flexShrink: 0 }}>Need Help?</h3>
+                        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+                            <DoubtChat milestoneId={id} />
+                        </div>
+                    </div>
+                </div>
+
             </div>
         </div>
     );
