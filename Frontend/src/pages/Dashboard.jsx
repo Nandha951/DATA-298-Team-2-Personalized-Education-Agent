@@ -13,7 +13,7 @@ function Dashboard() {
             <div className="main-content">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h1>Your Dashboard</h1>
-                    <Link to="/"><button style={{ padding: '8px 16px' }}>+ New Path</button></Link>
+                    <Link to="/create-path"><button style={{ padding: '8px 16px' }}>+ New Path</button></Link>
                 </div>
 
                 {learningPaths && learningPaths.length > 0 && (
@@ -50,7 +50,7 @@ function Dashboard() {
                     <MilestoneList milestones={milestones} currentMilestone={currentMilestoneId} />
                 ) : (
                     <div className="empty-state">
-                        <p>No active learning path found. Go to <Link to="/">Home</Link> to create a new one.</p>
+                        <p>No active learning path found. Go to <Link to="/create-path">Create Path</Link> to create a new one.</p>
                     </div>
                 )}
             </div>
