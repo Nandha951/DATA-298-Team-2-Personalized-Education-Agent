@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import ReactFlow, { Background, Controls, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
 import ConceptNode from './ConceptNode';
+import { llmService } from '../../services/llmService';
 
 const nodeTypes = {
   concept: ConceptNode,
@@ -71,6 +72,21 @@ export default function ConceptGapMap({ graphData }) {
         }
     }, [graphData, setNodes, setEdges]);
 
+    const [rca, setRca] = useState(null);
+    const [loadingRca, setLoadingRca] = useState(false);
+
+    const handleAnalyze = async () => {
+        setLoadingRca(true);
+        try {
+            const result = await llmService.generateRCA({ nodes, edges });
+            setRca(result);
+        } catch(e) {
+            console.error("RCA Error:", e);
+        } finally {
+            setLoadingRca(false);
+        }
+    };
+
     return (
         <div className="concept-gap-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -132,13 +148,25 @@ export default function ConceptGapMap({ graphData }) {
                     💡
                 </div>
                 <div>
-                    <h3 style={{ fontSize: '1.2rem', marginBottom: '8px', color: 'var(--text-main)' }}>Root-Cause Analysis</h3>
-                    <p style={{ color: 'var(--text-main)', marginBottom: '12px', fontWeight: '500' }}>
-                        Pattern detected: You're struggling with <strong>Backpropagation</strong>, but the root cause isn't Backpropagation itself - it's your understanding of the <strong>Chain Rule</strong> <span style={{ color: '#ef4444' }}>(28% confidence)</span> and <strong>Partial Derivatives</strong> <span style={{ color: '#f59e0b' }}>(52%)</span>.
-                    </p>
-                    <p style={{ color: 'var(--text-muted)' }}>
-                        <strong style={{ color: 'var(--primary)' }}>Recommended path:</strong> Spend approximately 10 minutes reviewing Chain Rule fundamentals, then 15 minutes on Partial Derivatives. After that, Backpropagation should click naturally. This approach is <strong>3x faster</strong> than re-studying Backpropagation directly.
-                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '20px' }}>
+                        <h3 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-main)' }}>AI Root-Cause Analysis</h3>
+                        <button onClick={handleAnalyze} disabled={loadingRca} style={{ padding: '6px 12px', fontSize: '14px', borderRadius: '6px', cursor: loadingRca ? 'wait' : 'pointer' }}>
+                            {loadingRca ? 'Analyzing Map...' : 'Generate Analysis'}
+                        </button>
+                    </div>
+                    
+                    {rca ? (
+                        <>
+                            <p style={{ color: 'var(--text-main)', marginBottom: '12px', fontWeight: '500' }} dangerouslySetInnerHTML={{ __html: rca.insight }}></p>
+                            <p style={{ color: 'var(--text-muted)' }}>
+                                <strong style={{ color: 'var(--primary)' }}>Recommended path:</strong> <span dangerouslySetInnerHTML={{ __html: rca.recommendation }}></span>
+                            </p>
+                        </>
+                    ) : (
+                        <p style={{ color: 'var(--text-muted)' }}>
+                            Click "Generate Analysis" to have the AI analyze your current Concept Map and find the hidden root causes of your knowledge gaps!
+                        </p>
+                    )}
                 </div>
             </div>
         </div>

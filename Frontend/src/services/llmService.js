@@ -224,5 +224,21 @@ export const llmService = {
       Return as a JSON object with a key "mermaidCode" containing the raw mermaid code string.
     `;
         return generateFromBackend(prompt);
+    },
+
+    async generateRCA(graphData) {
+        const prompt = `
+      You are an expert educational advisor analyzing a student's Concept Gap Map.
+      Here is the raw graph data showing concepts, their proficiency scores (0-100), and dependencies (edges):
+      ${JSON.stringify(graphData)}
+      
+      Look for patterns where a student is struggling (low score, typically < 60) on an advanced concept, but the root cause is actually a prerequisite concept (a source node pointing to it) that also has a low score.
+      If all scores are 0, just give a general encouraging starting advice suggesting where to begin.
+      
+      Return as a JSON object with two keys:
+      - "insight": A 1-2 sentence HTML string describing the root cause pattern detected. Use <strong> tags to highlight concept names. Example: "You're struggling with <strong>Backpropagation</strong>, but the root cause is <strong>Chain Rule</strong>."
+      - "recommendation": A 1-2 sentence HTML string with actionable advice based on the graph. Example: "Spend 10 minutes reviewing <strong>Chain Rule</strong> fundamentals first."
+    `;
+        return generateFromBackend(prompt);
     }
 };
