@@ -7,7 +7,7 @@ import Question from './Question';
 
 function QuizContainer({ milestoneContext, type }) {
     const navigate = useNavigate();
-    const { completeMilestone, milestones } = useLearningPath();
+    const { completeMilestone, milestones, updateGraphNodeScore } = useLearningPath();
     const [questions, setQuestions] = useState([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [score, setScore] = useState(0);
@@ -50,6 +50,11 @@ function QuizContainer({ milestoneContext, type }) {
 
             if (isCorrect) {
                 setScore(prev => prev + 1);
+            }
+            
+            console.log("Submitting Answer. TargetConceptId:", currentQuestion.targetConceptId, "IsCorrect:", isCorrect);
+            if (currentQuestion.targetConceptId && updateGraphNodeScore) {
+                updateGraphNodeScore(currentQuestion.targetConceptId, isCorrect);
             }
 
             // Save to history so LLM knows what we already answered

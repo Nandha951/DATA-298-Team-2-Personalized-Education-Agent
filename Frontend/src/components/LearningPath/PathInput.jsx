@@ -44,7 +44,7 @@ CRITICAL INSTRUCTION: You MUST generate a learning path that directly addresses 
 
             const data = await llmService.generateLearningPath(finalQuery);
             if (data && data.milestones) {
-                onPathGenerated(data.milestones, input || "Path from Document");
+                onPathGenerated(data.milestones, input || "Path from Document", data.graphData);
             }
         } catch (err) {
             console.error(err);

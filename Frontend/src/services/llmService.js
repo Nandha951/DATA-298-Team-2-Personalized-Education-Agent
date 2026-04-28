@@ -28,7 +28,9 @@ export const llmService = {
       You are an expert educational advisor. 
       Generate a structured learning path for a student wanting to learn: "${query}".
       
-      Return the output as a JSON object with a key "milestones".
+      Return the output as a JSON object with TWO keys: "milestones" and "graphData".
+      
+      1. "milestones": an array of objects representing the linear curriculum steps.
       Each milestone should have:
       - id: unique string or number
       - title: name of the milestone
@@ -36,8 +38,13 @@ export const llmService = {
       - progress: 0
       - hasFinetuning: boolean (true if it's a advanced or specific niche topic)
       - content: brief introductory text for this milestone
-      
       Generate between 3 to 6 milestones.
+      
+      2. "graphData": A Directed Acyclic Graph (DAG) mapping the core concepts of this topic.
+      It must contain "nodes" and "edges" properly formatted for React Flow.
+      Nodes schema: [{ "id": "1", "type": "concept", "data": { "label": "Concept Name", "score": 0, "status": "active" }, "position": { "x": number, "y": number } }]
+      Edges schema: [{ "id": "e1-2", "source": "1", "target": "2", "animated": true }]
+      Make sure edges connect logically, and use coordinate logic to space nodes apart visually so they form a beautiful flowchart graph (e.g. cascading down or flowing left to right, spacing by at least 150-200px horizontally and 100px vertically). Use the exact string "concept" for the node type.
     `;
         return generateFromBackend(prompt);
     },
@@ -121,7 +128,17 @@ export const llmService = {
     },
 
     async generateNextQuizQuestion(milestoneContext, type, pastHistory = []) {
-        const { title, topics, content } = milestoneContext;
+        const { title, topics, content, graphData } = milestoneContext;
+        
+        let graphContext = '';
+        if (graphData) {
+            try {
+                const parsed = typeof graphData === 'string' ? JSON.parse(graphData) : graphData;
+                if (parsed && parsed.nodes) {
+                    graphContext = `Available Concepts in Graph: ${JSON.stringify(parsed.nodes.map(n => ({id: n.id, label: n.data.label})))}`;
+                }
+            } catch(e) {}
+        }
         
         const pastContext = pastHistory.map((q, i) => `Q${i+1}: ${q.text} (Student got it ${q.isCorrect ? 'right' : 'wrong'})`).join('\n');
 
@@ -130,6 +147,9 @@ export const llmService = {
       Key topics: ${JSON.stringify(topics)}.
       Content context: "${content ? content.substring(0, 1500) : 'General knowledge on this topic'}".
       
+      ${graphContext}
+      IMPORTANT: If "Available Concepts in Graph" is provided, the question MUST strongly target one of the specific concepts from that list.
+      
       Type of Quiz: ${type}.
       
       Past History of this session:
@@ -137,7 +157,7 @@ export const llmService = {
       
       Generate exactly ONE multiple choice question.
       Return as JSON object with a key "question".
-      Format: { text: "Question text", options: ["A", "B", "C", "D"], correctAnswer: "exact string of correct option", explanation: "Why it is correct" }.
+      Format: { text: "Question text", options: ["A", "B", "C", "D"], correctAnswer: "exact string of correct option", explanation: "Why it is correct", targetConceptId: "the ID of the concept node this question tests (string) from the Available Concepts list if provided" }.
     `;
         return generateFromBackend(prompt);
     },

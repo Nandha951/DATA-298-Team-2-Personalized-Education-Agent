@@ -30,7 +30,7 @@ router.get('/', asyncRoute(async (req, res) => {
 
 // POST /api/paths - Create a new path and its milestones
 router.post('/', asyncRoute(async (req, res) => {
-    const { topic, milestones } = req.body;
+    const { topic, milestones, graphData } = req.body;
     
     if (!topic || !milestones) {
         return res.status(400).json({ error: 'Missing topic or milestones data' });
@@ -40,6 +40,7 @@ router.post('/', asyncRoute(async (req, res) => {
         data: {
             userId: req.user.userId,
             topic,
+            graphData,
             milestones: {
                 create: milestones.map((m, index) => ({
                     title: m.title,
@@ -79,6 +80,24 @@ router.put('/milestone/:id', asyncRoute(async (req, res) => {
     });
     
     res.json({ ...updated, topics: JSON.parse(updated.topics) });
+}));
+
+// PUT /api/paths/:id - Update path (e.g. graphData scores)
+router.put('/:id', asyncRoute(async (req, res) => {
+    const { id } = req.params;
+    const { graphData } = req.body;
+
+    const path = await prisma.learningPath.findUnique({ where: { id } });
+    if (!path || path.userId !== req.user.userId) {
+        return res.status(403).json({ error: 'Not authorized to update this path' });
+    }
+
+    const updated = await prisma.learningPath.update({
+        where: { id },
+        data: { graphData }
+    });
+    
+    res.json(updated);
 }));
 
 // DELETE /api/paths/:id - Delete a learning path and its milestones

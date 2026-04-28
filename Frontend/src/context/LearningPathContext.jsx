@@ -48,7 +48,7 @@ export const LearningPathProvider = ({ children }) => {
         llmService.setProvider(provider);
     };
 
-    const createNewPath = async (title, newMilestones) => {
+    const createNewPath = async (title, newMilestones, graphData) => {
         const token = localStorage.getItem('auth_token');
         if (!token) return;
 
@@ -59,7 +59,7 @@ export const LearningPathProvider = ({ children }) => {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ topic: title || "New Learning Path", milestones: newMilestones })
+                body: JSON.stringify({ topic: title || "New Learning Path", milestones: newMilestones, graphData: graphData ? JSON.stringify(graphData) : null })
             });
 
             if (res.ok) {
@@ -109,7 +109,7 @@ export const LearningPathProvider = ({ children }) => {
     const setMilestonesWrapper = (newMilestones) => {
         // In full stack, updating the entire path's milestones requires a bit more logic.
         // For simplicity, we just create a new path if new milestones are generated to replace the old.
-        createNewPath("Adjusted Learning Path", newMilestones);
+        createNewPath("Adjusted Learning Path", newMilestones, null);
     };
 
     const getMilestoneById = (id) => {
@@ -148,6 +148,61 @@ export const LearningPathProvider = ({ children }) => {
         }
     };
 
+    const updateGraphNodeScore = async (conceptNodeId, isCorrect) => {
+        console.log("updateGraphNodeScore called with:", conceptNodeId);
+        if (!currentPathId) {
+            console.log("No currentPathId");
+            return;
+        }
+        const currentPath = learningPaths.find(p => String(p.id) === String(currentPathId));
+        if (!currentPath || !currentPath.graphData) {
+            console.log("No currentPath or graphData");
+            return;
+        }
+        
+        let graphDataObj;
+        try {
+            graphDataObj = typeof currentPath.graphData === 'string' ? JSON.parse(currentPath.graphData) : currentPath.graphData;
+        } catch (e) { 
+            console.error("Failed to parse graph data in context", e);
+            return; 
+        }
+        
+        const nodeIndex = graphDataObj.nodes.findIndex(n => String(n.id) === String(conceptNodeId) || String(n.data.label).toLowerCase() === String(conceptNodeId).toLowerCase());
+        console.log("Found Node Index:", nodeIndex);
+        
+        if (nodeIndex !== -1) {
+            let currentScore = graphDataObj.nodes[nodeIndex].data.score || 50;
+            if (isCorrect) currentScore = Math.min(100, currentScore + 20);
+            else currentScore = Math.max(0, currentScore - 15);
+            
+            console.log("Updating score for", graphDataObj.nodes[nodeIndex].data.label, "from", graphDataObj.nodes[nodeIndex].data.score, "to", currentScore);
+            graphDataObj.nodes[nodeIndex].data.score = currentScore;
+            graphDataObj.nodes[nodeIndex].data.status = 'unlocked'; // Ensure it's not locked anymore so it renders the score!
+            
+            // local state update
+            setLearningPaths(prev => prev.map(path => {
+                if (String(path.id) === String(currentPathId)) {
+                    return { ...path, graphData: JSON.stringify(graphDataObj) };
+                }
+                return path;
+            }));
+            
+            // remote update
+            const token = localStorage.getItem('auth_token');
+            if (token) {
+                await fetch(`/api/paths/${currentPathId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ graphData: JSON.stringify(graphDataObj) })
+                });
+            }
+        }
+    };
+
     return (
         <LearningPathContext.Provider
             value={{
@@ -164,6 +219,7 @@ export const LearningPathProvider = ({ children }) => {
                 getMilestoneById,
                 selectedProvider,
                 changeProvider,
+                updateGraphNodeScore,
             }}
         >
             {children}

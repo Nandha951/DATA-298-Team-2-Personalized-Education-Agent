@@ -2,10 +2,12 @@ import { Link } from 'react-router-dom';
 import Navbar from '../components/Shared/Navbar';
 import MilestoneList from '../components/LearningPath/MilestoneList';
 import PathAdjuster from '../components/LearningPath/PathAdjuster';
+import ConceptGapMap from '../components/LearningPath/ConceptGapMap';
 import { useLearningPath } from '../context/LearningPathContext';
 
 function Dashboard() {
     const { milestones, currentMilestoneId, learningPaths, currentPathId, switchPath, deletePath } = useLearningPath();
+    const currentPath = learningPaths.find(p => String(p.id) === String(currentPathId));
 
     return (
         <div className="dashboard-page">
@@ -47,7 +49,13 @@ function Dashboard() {
                 <PathAdjuster />
 
                 {milestones.length > 0 ? (
-                    <MilestoneList milestones={milestones} currentMilestone={currentMilestoneId} />
+                    <>
+                        <ConceptGapMap graphData={currentPath?.graphData} />
+                        <h2 style={{ marginTop: '20px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontSize: '1.5rem' }}>📚</span> Linear Syllabus
+                        </h2>
+                        <MilestoneList milestones={milestones} currentMilestone={currentMilestoneId} />
+                    </>
                 ) : (
                     <div className="empty-state">
                         <p>No active learning path found. Go to <Link to="/create-path">Create Path</Link> to create a new one.</p>

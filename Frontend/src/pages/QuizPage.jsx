@@ -6,8 +6,9 @@ import { useLearningPath } from '../context/LearningPathContext';
 
 function QuizPage() {
     const { milestoneId, type } = useParams();
-    const { getMilestoneById } = useLearningPath();
+    const { getMilestoneById, learningPaths, currentPathId } = useLearningPath();
     const [milestone, setMilestone] = useState(null);
+    const currentPath = learningPaths.find(p => String(p.id) === String(currentPathId));
 
     useEffect(() => {
         // Fetch the milestone details to pass as context
@@ -23,6 +24,7 @@ function QuizPage() {
         title: milestone.title,
         topics: milestone.topics || [],
         content: milestone.detailedContent || milestone.content || "General knowledge",
+        graphData: currentPath?.graphData,
     };
 
     return (

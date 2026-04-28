@@ -7,8 +7,8 @@ function CreatePath() {
     const navigate = useNavigate();
     const { createNewPath } = useLearningPath();
 
-    const handlePathGenerated = (milestones, query) => {
-        createNewPath(query, milestones);
+    const handlePathGenerated = (milestones, query, graphData) => {
+        createNewPath(query, milestones, graphData);
         navigate('/dashboard');
     };
 

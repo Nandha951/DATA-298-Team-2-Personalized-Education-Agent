@@ -25,6 +25,7 @@ model LearningPath {
   status     String       @default("active")
   createdAt  DateTime     @default(now())
   milestones Milestone[]
+  graphData  String?
 }
 
 model Milestone {
