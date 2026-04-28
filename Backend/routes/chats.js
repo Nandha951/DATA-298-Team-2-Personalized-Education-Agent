@@ -28,7 +28,10 @@ router.get('/:milestoneId/threads', asyncRoute(async (req, res) => {
     const chats = await prisma.chatMemory.findMany({
         where: { 
             userId: req.user.userId,
-            contextRef: { startsWith: `${milestoneId}_selection_` }
+            OR: [
+                { contextRef: milestoneId },
+                { contextRef: { startsWith: `${milestoneId}_selection_` } }
+            ]
         },
         orderBy: { createdAt: 'asc' }
     });

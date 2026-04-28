@@ -92,7 +92,7 @@ export const llmService = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}` 
             },
-            body: JSON.stringify({ question }) // Stream endpoint expects raw Text
+            body: JSON.stringify({ provider: currentProvider, question })
         });
         
         if (!response.ok) {
@@ -113,7 +113,7 @@ export const llmService = {
         const response = await fetch('/api/ai/stream-generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt })
+            body: JSON.stringify({ provider: currentProvider, prompt })
         });
         if (!response.ok) throw new Error('Stream request failed');
 
@@ -206,10 +206,12 @@ export const llmService = {
         return generateFromBackend(prompt);
     },
 
-    async visualizeExplanation(explanation) {
+    async visualizeExplanation(explanation, instruction = "") {
+        const instructionText = instruction ? `Student's specific instruction for the diagram: "${instruction}"` : "";
         const prompt = `
       Convert the following educational explanation into a comprehensive Mermaid.js diagram (e.g. flowchart TD, mindmap).
       Make sure to use strict valid Mermaid syntax.
+      ${instructionText}
       
       CRITICAL MERMAID SYNTAX RULES:
       1. Node IDs MUST be simple alphanumeric without special characters (e.g., A, B, C).

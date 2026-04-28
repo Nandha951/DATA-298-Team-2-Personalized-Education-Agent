@@ -132,7 +132,7 @@ Return as a JSON object with a key "answer" containing your raw markdown respons
 
 // GET /api/ai/stream-generate - Universal generic streaming endpoint for UI elements
 router.post('/stream-generate', asyncRoute(async (req, res) => {
-    const { prompt } = req.body;
+    const { provider, prompt } = req.body;
     if (!prompt) return res.status(400).end();
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -142,16 +142,41 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
     res.write(" ");
 
     try {
-        const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
-        const result = await streamModel.generateContentStream(prompt);
-
-        for await (const chunk of result.stream) {
-            res.write(chunk.text());
+        if (provider === 'openai') {
+            if (!openaiClient) throw new Error("OpenAI API Key not configured in .env");
+            const stream = await openaiClient.chat.completions.create({
+                model: OPENAI_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+            });
+            for await (const chunk of stream) {
+                res.write(chunk.choices[0]?.delta?.content || '');
+            }
+        } else if (provider === 'deepseek') {
+            if (!deepseekClient) throw new Error("Deepseek API Key not configured in .env");
+            const stream = await deepseekClient.chat.completions.create({
+                model: DEEPSEEK_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+            });
+            for await (const chunk of stream) {
+                res.write(chunk.choices[0]?.delta?.content || '');
+            }
+        } else {
+            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+            const result = await streamModel.generateContentStream(prompt);
+            for await (const chunk of result.stream) {
+                res.write(chunk.text());
+            }
         }
         res.end();
     } catch (err) {
         console.error("Streaming error:", err);
-        res.write(`\n\n[Error: Stream interrupted: ${err.message}]`);
+        let userMessage = "Connection error while streaming AI response.";
+        if (err.message && err.message.includes('429')) {
+             userMessage = "Tutor AI free-tier quota exceeded. Please try again in a few seconds.";
+        }
+        res.write(`\n\n*[Error: ${userMessage}]*`);
         res.end();
     }
 }));
@@ -159,7 +184,7 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
 // GET /api/ai/stream-rag - Streaming SSE endpoint for Chatbots
 // Note: Must use GET or specific eventSource setups, or use generic POST with chunked Transfer-Encoding
 router.post('/stream-rag', requireAuth, asyncRoute(async (req, res) => {
-    const { question } = req.body;
+    const { provider, question } = req.body;
     if (!question) return res.status(400).end();
 
     console.log(`[Stream API] Initiating request for user ${req.user.userId}`);
@@ -197,22 +222,50 @@ IMPORTANT: Stream directly in markdown. DO NOT wrap with \`\`\`json or output JS
 `;      
         console.log(`[Stream API] Synthesized complete LLM prompt.`);
         
-        // Use standard gemini model instead of json-enforced one
-        const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
-        const result = await streamModel.generateContentStream(prompt);
-        console.log(`[Stream API] Gemini stream connection established. Piping chunks...`);
-
         let byteCount = 0;
-        for await (const chunk of result.stream) {
-            const textChunk = chunk.text();
-            byteCount += textChunk.length;
-            res.write(textChunk);
+        if (provider === 'openai') {
+            if (!openaiClient) throw new Error("OpenAI API Key not configured in .env");
+            const stream = await openaiClient.chat.completions.create({
+                model: OPENAI_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+            });
+            for await (const chunk of stream) {
+                const textChunk = chunk.choices[0]?.delta?.content || '';
+                byteCount += textChunk.length;
+                res.write(textChunk);
+            }
+        } else if (provider === 'deepseek') {
+            if (!deepseekClient) throw new Error("Deepseek API Key not configured in .env");
+            const stream = await deepseekClient.chat.completions.create({
+                model: DEEPSEEK_MODEL,
+                messages: [{ role: 'user', content: prompt }],
+                stream: true,
+            });
+            for await (const chunk of stream) {
+                const textChunk = chunk.choices[0]?.delta?.content || '';
+                byteCount += textChunk.length;
+                res.write(textChunk);
+            }
+        } else {
+            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+            const result = await streamModel.generateContentStream(prompt);
+            for await (const chunk of result.stream) {
+                const textChunk = chunk.text();
+                byteCount += textChunk.length;
+                res.write(textChunk);
+            }
         }
+
         res.end();
         console.log(`[Stream API] Successfully finished stream. Piped ${byteCount} bytes.`);
     } catch (err) {
         console.error("[Stream API] Uncaught streaming error:", err);
-        res.write(`\n\n[Error: Stream interrupted: ${err.message}]`);
+        let userMessage = "Connection error while streaming AI response.";
+        if (err.message && err.message.includes('429')) {
+             userMessage = "Tutor AI free-tier quota exceeded. Please try again in a few seconds.";
+        }
+        res.write(`\n\n*[Error: ${userMessage}]*`);
         res.end();
     }
 }));

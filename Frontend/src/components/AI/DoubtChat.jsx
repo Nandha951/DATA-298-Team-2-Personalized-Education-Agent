@@ -1,13 +1,40 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import ReactMarkdown from 'react-markdown';
 import { llmService } from '../../services/llmService';
+import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 
 function DoubtChat({ milestoneId }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
+    const autoTTS = true; // Always read aloud in Voice Mode
+    const abortControllerRef = useRef(null);
+
+    const { isListening, isSpeaking, startListening, stopListening, speak } = useVoiceAssistant((transcript, isFinal) => {
+        if (isFinal) {
+            setInput(''); // Clear input box since we submitted
+            handleAsk(transcript); // Instantly submit!
+        } else {
+            setInput(transcript); // Replace, don't append, because interim transcripts contain the full phrase
+            
+            // If the user starts talking, abort any currently generating AI stream!
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        }
+    });
+
+    const handleStopAll = () => {
+        stopListening();
+        window.speechSynthesis.cancel();
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        setLoading(false);
+        setInput('');
+    };
 
     // Load historical chats on mount
     useEffect(() => {
@@ -44,10 +71,17 @@ function DoubtChat({ milestoneId }) {
         }).catch(err => console.error("Failed to save chat message:", err));
     };
 
-    const handleAsk = async () => {
-        if (!input.trim() && !file) return;
+    const handleAsk = async (forcedInput) => {
+        const currentInput = typeof forcedInput === 'string' ? forcedInput : input;
+        if (!currentInput.trim() && !file) return;
 
-        const currentInput = input;
+        // Stop the previous generation if user interrupts
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+        abortControllerRef.current = new AbortController();
+        const currentAbort = abortControllerRef.current;
+
         const userMessage = { role: 'user', content: currentInput };
         
         setMessages(prev => [...prev, userMessage]);
@@ -64,6 +98,7 @@ function DoubtChat({ milestoneId }) {
 
             let buffer = "";
             let displayContent = "";
+            let spokenLength = 0; // Track what has been sent to TTS
             let isStreamDone = false;
 
             const stream = llmService.streamDoubtAnswer(currentInput);
@@ -76,6 +111,11 @@ function DoubtChat({ milestoneId }) {
             })();
             
             while (!isStreamDone || displayContent.length < buffer.length) {
+                if (currentAbort.signal.aborted) {
+                    console.log("Stream interrupted by user.");
+                    break;
+                }
+                
                 if (displayContent.length < buffer.length) {
                     const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
                     displayContent += stepText;
@@ -86,10 +126,33 @@ function DoubtChat({ milestoneId }) {
                         return newMessages;
                     });
                 }
+                
+                // Stream audio chunk by chunk (sentence by sentence)
+                if (autoTTS && !currentAbort.signal.aborted) {
+                    const currentUnspoken = displayContent.slice(spokenLength);
+                    // Match a full sentence ending in . ? or !
+                    const match = currentUnspoken.match(/^.*?[.!?]+(?=\s|$)/);
+                    if (match) {
+                        const sentence = match[0];
+                        speak(sentence, null, false); // false = don't clear queue, just append
+                        spokenLength += sentence.length;
+                    }
+                }
+
                 await new Promise(r => setTimeout(r, 15));
             }
 
-            saveMessage('ai', displayContent);
+            // Speak any remaining text at the end
+            if (!currentAbort.signal.aborted && autoTTS && spokenLength < displayContent.length) {
+                const remainder = displayContent.slice(spokenLength);
+                if (remainder.trim()) {
+                    speak(remainder, null, false);
+                }
+            }
+
+            if (!currentAbort.signal.aborted) {
+                saveMessage('ai', displayContent);
+            }
         } catch (err) {
             console.error('Error asking question:', err);
             const errorMessage = { role: 'ai', content: err.message || 'Connection error. Please try again later.' };
@@ -104,45 +167,69 @@ function DoubtChat({ milestoneId }) {
     };
 
     return (
-        <div className="doubt-chat" style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: 0, border: 'none', boxShadow: 'none', background: 'transparent' }}>
-            <div className="chat-header" style={{ flexShrink: 0, background: 'transparent', borderBottom: '1px solid var(--border-color)', padding: '0 0 10px 0', fontFamily: 'Outfit', color: 'var(--text-main)' }}>Your Tutor AI - Specialized Memory</div>
+        <div className="doubt-chat" style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: 0, border: 'none', boxShadow: 'none', background: 'transparent', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '20px' }}>
+                
+                <h3 style={{ margin: '0 0 20px 0', color: 'var(--text-main)', fontSize: '1.4rem' }}>
+                    Hands-Free AI Tutor
+                </h3>
 
-            <div className="messages-container" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '15px 5px', display: 'flex', flexDirection: 'column', gap: '12px', background: 'transparent' }}>
-                {messages.map((msg, i) => (
-                    <div key={i} className={`message ${msg.role}`} style={{ 
-                        padding: '12px 16px', 
-                        borderRadius: '12px',
-                        background: msg.role === 'ai' ? 'var(--surface-color)' : 'var(--primary-light)',
-                        border: msg.role === 'ai' ? '1px solid var(--border-color)' : 'none',
-                        color: msg.role === 'ai' ? 'var(--text-main)' : 'var(--primary-hover)',
-                        alignSelf: msg.role === 'ai' ? 'flex-start' : 'flex-end',
-                        maxWidth: '90%',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.02)'
-                    }}>
-                        <div className="markdown-body" style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                        </div>
-                    </div>
-                ))}
-                {loading && <div className="loading" style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.85rem' }}>AI is looking up your documents...</div>}
-            </div>
-
-            <div className="input-container" style={{ flexShrink: 0, display: 'flex', gap: '8px', padding: '15px 0 0 0', borderTop: '1px solid var(--border-color)', background: 'transparent' }}>
-                <input
-                    type="text"
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyPress={(e) => {
-                        if (e.key === 'Enter') handleAsk();
+                <button 
+                    onClick={(isListening || loading || isSpeaking) ? handleStopAll : startListening}
+                    style={{ 
+                        padding: '12px 28px',
+                        borderRadius: '30px',
+                        fontSize: '1.1rem',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        background: (isListening || loading || isSpeaking) ? 'rgba(239, 68, 68, 0.1)' : 'var(--primary)',
+                        color: (isListening || loading || isSpeaking) ? '#ef4444' : 'white',
+                        border: (isListening || loading || isSpeaking) ? '2px solid #ef4444' : '2px solid var(--primary)',
+                        cursor: 'pointer',
+                        transition: 'all 0.3s ease',
+                        boxShadow: (isListening || loading || isSpeaking) ? '0 0 20px rgba(239, 68, 68, 0.2)' : '0 4px 10px rgba(0,0,0,0.1)',
+                        zIndex: 2
                     }}
-                    placeholder="Ask about this milestone..."
-                    disabled={loading}
-                    style={{ flex: 1, padding: '10px 14px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--surface-color)', minWidth: 0, fontSize: '0.9rem', fontFamily: 'Inter' }}
-                />
-                <button onClick={handleAsk} disabled={loading || !input.trim()} style={{ padding: '8px 16px', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', flexShrink: 0, fontWeight: '600' }}>
-                    Send
+                >
+                    <span style={{ fontSize: '1.4rem' }}>{(isListening || loading || isSpeaking) ? '⏹️' : '🎙️'}</span>
+                    {(isListening || loading || isSpeaking) ? 'Deactivate Voice Mode' : 'Activate Voice Mode'}
                 </button>
+
+                <div style={{ marginTop: '30px', minHeight: '100px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    {(isListening || loading || isSpeaking) ? (
+                        <>
+                            <div style={{ 
+                                fontSize: '2.5rem', 
+                                marginBottom: '10px',
+                                animation: (isListening || loading) ? 'pulse 1.5s infinite' : 'none',
+                                filter: isListening ? 'drop-shadow(0 0 10px rgba(239,68,68,0.5))' : 'none'
+                            }}>
+                                {isListening ? '👂' : (isSpeaking ? '🗣️' : '🧠')}
+                            </div>
+                            <h4 style={{ margin: '0 0 8px 0', color: isListening ? '#ef4444' : 'var(--primary)' }}>
+                                {isListening ? 'Listening...' : (isSpeaking ? 'Speaking...' : 'Processing...')}
+                            </h4>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '240px', margin: '0', fontStyle: 'italic', lineHeight: '1.4' }}>
+                                {input ? `"${input}"` : (isListening ? "Speak naturally to ask a question..." : "")}
+                            </p>
+                        </>
+                    ) : (
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '240px', margin: '0', lineHeight: '1.5' }}>
+                            Click to activate hands-free continuous conversation.
+                        </p>
+                    )}
+                </div>
+
             </div>
+            
+            <style>{`
+                @keyframes pulse {
+                    0% { transform: scale(0.95); opacity: 1; }
+                    100% { transform: scale(1.3); opacity: 0; }
+                }
+            `}</style>
         </div>
     );
 }
