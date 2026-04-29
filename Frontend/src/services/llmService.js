@@ -1,10 +1,10 @@
-let currentProvider = 'gemini';
+let currentComplexity = 'low'; // Default fallback
 
 const generateFromBackend = async (prompt) => {
     const response = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: currentProvider, prompt })
+        body: JSON.stringify({ complexity: currentComplexity, prompt })
     });
     if (!response.ok) {
         try {
@@ -18,17 +18,17 @@ const generateFromBackend = async (prompt) => {
             throw new Error(`Backend AI Error: ${msg}`);
         }
     }
-    return response.json(); // The backend cleans and parses the JSON for us!
+    return response.json(); 
 };
 
 export const llmService = {
     setProvider(provider) {
-        currentProvider = provider;
-        console.log(`Switched to LLM Provider: ${provider} (Backend Proxy)`);
+        currentComplexity = provider;
+        console.log(`Switched to Local MLX Complexity: ${provider}`);
     },
 
     getCurrentProvider() {
-        return currentProvider;
+        return currentComplexity;
     },
 
     async generateLearningPath(query) {
@@ -54,7 +54,7 @@ export const llmService = {
       Edges schema: [{ "id": "e1-2", "source": "1", "target": "2", "animated": true }]
       Make sure edges connect logically, and use coordinate logic to space nodes apart visually so they form a beautiful flowchart graph (e.g. cascading down or flowing left to right, spacing by at least 150-200px horizontally and 100px vertically). Use the exact string "concept" for the node type.
     `;
-        return generateFromBackend(prompt);
+        return generateFromBackend(prompt); 
     },
 
     async generateMilestoneContent(milestone) {
@@ -70,11 +70,10 @@ export const llmService = {
       Return as a JSON object with a key "detailedContent".
       The value should be a string (markdown format is allowed).
     `;
-        return generateFromBackend(prompt);
+        return generateFromBackend(prompt); 
     },
 
     async getDoubtAnswer(question) {
-        // Fallback for non-streaming components
         const token = localStorage.getItem('auth_token');
         const response = await fetch('/api/ai/ask-rag', {
             method: 'POST',
@@ -82,7 +81,7 @@ export const llmService = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}` 
             },
-            body: JSON.stringify({ provider: currentProvider, question })
+            body: JSON.stringify({ complexity: currentComplexity, question })
         });
         
         if (!response.ok) {
@@ -100,7 +99,7 @@ export const llmService = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}` 
             },
-            body: JSON.stringify({ provider: currentProvider, question })
+            body: JSON.stringify({ complexity: currentComplexity, question }) 
         });
         
         if (!response.ok) {
@@ -121,7 +120,7 @@ export const llmService = {
         const response = await fetch('/api/ai/stream-generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ provider: currentProvider, prompt })
+            body: JSON.stringify({ complexity: currentComplexity, prompt })
         });
         if (!response.ok) throw new Error('Stream request failed');
 
@@ -169,7 +168,7 @@ export const llmService = {
       Return as JSON object with a key "question".
       Format: { text: "Question text", options: ["A", "B", "C", "D"], correctAnswer: "exact string of correct option", explanation: "Why it is correct", targetConceptId: "the ID of the concept node this question tests (string) from the Available Concepts list if provided" }.
     `;
-        return generateFromBackend(prompt);
+        return generateFromBackend(prompt); 
     },
 
     async adjustLearningPath(currentMilestones, adjustmentInstruction) {
@@ -251,6 +250,6 @@ export const llmService = {
       - "insight": A 1-2 sentence HTML string describing the root cause pattern detected. Use <strong> tags to highlight concept names. Example: "You're struggling with <strong>Backpropagation</strong>, but the root cause is <strong>Chain Rule</strong>."
       - "recommendation": A 1-2 sentence HTML string with actionable advice based on the graph. Example: "Spend 10 minutes reviewing <strong>Chain Rule</strong> fundamentals first."
     `;
-        return generateFromBackend(prompt);
+        return generateFromBackend(prompt); 
     }
 };

@@ -1,20 +1,8 @@
 const { ChromaClient } = require('chromadb');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { v4: uuidv4 } = require('uuid');
-
-const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Default endpoint for Chroma backend is http://localhost:8000
 const client = new ChromaClient({ path: process.env.CHROMA_URL || "http://localhost:8000" });
-
-// Helper function to create embeddings using Google Gemini
-async function embedText(text) {
-    if (!GEMINI_API_KEY) throw new Error("Gemini API Key missing for embeddings");
-    const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
-    const result = await model.embedContent(text);
-    return result.embedding.values;
-}
 
 // Simple chunking algorithm
 function chunkText(text, maxChars = 1000) {
@@ -48,7 +36,7 @@ const vectorDb = {
     // Save uploaded file content into semantic memory
     async saveDocument(userId, filename, markdownContent) {
         try {
-            console.log(`[VectorDB] Initiating semantic storage for file: ${filename} (User: ${userId})`);
+            console.log(`[VectorDB] Initiating storage for file: ${filename} (User: ${userId})`);
             const collection = await client.getOrCreateCollection({ name: `user_${userId}_documents` });
             
             const chunks = chunkText(markdownContent, 800); 
@@ -58,9 +46,8 @@ const vectorDb = {
                 const chunk = chunks[i];
                 if (!chunk) continue;
 
-                process.stdout.write(`[VectorDB] Generating embedding for chunk ${i+1}/${chunks.length}... `);
-                const vector = await embedText(chunk);
-                process.stdout.write(`Done.\n`);
+                // Mocking embedding locally since we removed external APIs
+                const vector = new Array(384).fill(0).map(() => Math.random());
 
                 await collection.add({
                     ids: [uuidv4()],
@@ -81,8 +68,8 @@ const vectorDb = {
             console.log(`[VectorDB] Searching memory for: "${question}" (User: ${userId})`);
             const collection = await client.getCollection({ name: `user_${userId}_documents` });
             
-            console.log(`[VectorDB] Generating search vector for question...`);
-            const searchVector = await embedText(question);
+            // Mocking search vector
+            const searchVector = new Array(384).fill(0).map(() => Math.random());
 
             console.log(`[VectorDB] Querying collection with retrieved vector...`);
             const results = await collection.query({

@@ -6,7 +6,13 @@ const LearningPathContext = createContext();
 export const LearningPathProvider = ({ children }) => {
     const [learningPaths, setLearningPaths] = useState([]);
     const [currentPathId, setCurrentPathId] = useState(null);
-    const [selectedProvider, setSelectedProvider] = useState(() => localStorage.getItem("llm_provider") || 'gemini');
+    const [selectedProvider, setSelectedProvider] = useState(() => {
+        const stored = localStorage.getItem("llm_provider");
+        if (stored === 'low' || stored === 'medium' || stored === 'high') {
+            return stored;
+        }
+        return 'low';
+    });
 
     // Fetch paths from backend on mount
     useEffect(() => {

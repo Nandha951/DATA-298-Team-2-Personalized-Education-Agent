@@ -38,9 +38,9 @@ function Navbar() {
                         className="provider-select"
                         style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--surface-color)', color: 'var(--text-main)', fontFamily: 'Inter', outline: 'none', cursor: 'pointer' }}
                     >
-                        <option value="gemini">Google Gemini</option>
-                        <option value="openai">OpenAI (GPT-4o)</option>
-                        <option value="deepseek">Deepseek V3</option>
+                        <option value="low">Qwen 3.5 4B (Low)</option>
+                        <option value="medium">Llama 3.1 8B (Med)</option>
+                        <option value="high">DeepSeek R1 (High)</option>
                     </select>
                 </div>
             </div>
