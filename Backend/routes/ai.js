@@ -80,7 +80,7 @@ router.post('/generate', asyncRoute(async (req, res) => {
         }
     }
     console.error("Backend LLM Error:", lastError);
-    res.status(500).json({ error: "Failed to generate AI content" });
+    res.status(500).json({ error: "Failed to generate AI content", details: lastError ? lastError.message : "Unknown error" });
 }));
 
 const vectorDb = require('../services/vectorDb');
@@ -127,7 +127,7 @@ Return as a JSON object with a key "answer" containing your raw markdown respons
         }
     }
     console.error("Backend LLM Error:", lastError);
-    res.status(500).json({ error: "Failed to generate AI content" });
+    res.status(500).json({ error: "Failed to generate AI content", details: lastError ? lastError.message : "Unknown error" });
 }));
 
 // GET /api/ai/stream-generate - Universal generic streaming endpoint for UI elements

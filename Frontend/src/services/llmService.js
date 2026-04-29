@@ -7,8 +7,16 @@ const generateFromBackend = async (prompt) => {
         body: JSON.stringify({ provider: currentProvider, prompt })
     });
     if (!response.ok) {
-        let msg = await response.text();
-        throw new Error(`Backend AI Error: ${msg}`);
+        try {
+            const errJson = await response.json();
+            throw new Error(errJson.details || errJson.error || "Failed to generate AI content");
+        } catch (e) {
+            if (e.message !== "Failed to fetch") {
+                throw e;
+            }
+            let msg = await response.text();
+            throw new Error(`Backend AI Error: ${msg}`);
+        }
     }
     return response.json(); // The backend cleans and parses the JSON for us!
 };
@@ -127,7 +135,7 @@ export const llmService = {
         }
     },
 
-    async generateNextQuizQuestion(milestoneContext, type, pastHistory = []) {
+    async generateNextQuizQuestion(milestoneContext, type, pastHistory = [], userInstruction = "") {
         const { title, topics, content, graphData } = milestoneContext;
         
         let graphContext = '';
@@ -151,6 +159,8 @@ export const llmService = {
       IMPORTANT: If "Available Concepts in Graph" is provided, the question MUST strongly target one of the specific concepts from that list.
       
       Type of Quiz: ${type}.
+      
+      ${userInstruction ? `CRITICAL USER INSTRUCTION: "${userInstruction}"\nYou MUST adhere strictly to this instruction when formulating the question, tone, and options.` : ""}
       
       Past History of this session:
       ${pastHistory.length > 0 ? "The student has answered the following questions:\n" + pastContext + "\n\nCRITICAL: DO NOT repeat any of these questions. If the student got previous questions wrong, generate a question targeting the same concept but phrased differently to reinforce learning. If they got it right, move to a harder concept or a different topic from the milestone." : "This is the first question. Start with a foundational concept."}
