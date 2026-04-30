@@ -9,15 +9,18 @@ let startPromise = null;
 const MODELS = {
     low: {
         base: 'Qwen/Qwen3.5-4B',
-        adapter: 'models/qwen3.5_4b/content/qwen3.5_4b_complete'
+        adapter: 'models/qwen3.5_4b/content/qwen3.5_4b_complete',
+        chatTemplateArgs: '{"enable_thinking": false}'
     },
     medium: {
         base: 'meta-llama/Llama-3.1-8B-Instruct',
-        adapter: 'models/llama_3_1_adapter/llama_3_1_adapter'
+        adapter: 'models/llama_3_1_adapter/llama_3_1_adapter',
+        chatTemplateArgs: null
     },
     high: {
         base: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B',
-        adapter: 'models/deepseek/deepseek-r1-7b-finetuned/final_adapter'
+        adapter: 'models/deepseek/deepseek-r1-7b-finetuned/final_adapter',
+        chatTemplateArgs: '{"enable_thinking": false}'
     }
 };
 
@@ -89,12 +92,20 @@ async function ensureModel(complexity) {
 
         console.log(`[MLX Manager] Starting MLX server with Base: ${modelConfig.base}, Adapter: ${adapterPath}`);
 
-        mlxProcess = spawn('python3', [
+        const serverArgs = [
             '-m', 'mlx_lm.server',
             '--model', modelConfig.base,
             '--adapter-path', adapterPath,
             '--port', MLX_PORT.toString()
-        ], {
+        ];
+
+        // Add chat template args if configured (e.g., to disable thinking mode)
+        if (modelConfig.chatTemplateArgs) {
+            serverArgs.push('--chat-template-args', modelConfig.chatTemplateArgs);
+            console.log(`[MLX Manager] Disabling thinking mode via --chat-template-args`);
+        }
+
+        mlxProcess = spawn('python3', serverArgs, {
             cwd: backendRoot,
             env: { ...process.env }
         });

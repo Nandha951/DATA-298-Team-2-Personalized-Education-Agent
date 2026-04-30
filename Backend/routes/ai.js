@@ -1,6 +1,9 @@
 const express = require('express');
 const { ensureModel, MLX_PORT } = require('../services/mlxManager');
 
+const { fetch, Agent } = require('undici');
+const dispatcher = new Agent({ headersTimeout: 900000, bodyTimeout: 900000 });
+
 const router = express.Router();
 
 // Clean markdown from LLM and extract JSON
@@ -22,12 +25,16 @@ const generateContent = async (complexity, prompt) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             messages: [
-                { role: "system", content: "You are a helpful educational assistant. Output strictly valid JSON." },
+                { role: "system", content: "You are a helpful educational assistant. Do NOT use any internal reasoning or thinking. Output strictly valid JSON without any conversational filler. Start your response with { and end with }." },
                 { role: "user", content: prompt }
             ],
-            max_tokens: 4096
+            max_tokens: 4096,
+            temperature: 0.2,
+            stop: ["<|im_end|>", "<|endoftext|>", "</think>"],
+            chat_template_kwargs: { enable_thinking: false }
         }),
-        signal: AbortSignal.timeout(900000) // 15 minutes
+        signal: AbortSignal.timeout(900000), // 15 minutes
+        dispatcher: dispatcher
     });
 
     if (!response.ok) {
@@ -35,9 +42,30 @@ const generateContent = async (complexity, prompt) => {
     }
 
     const completion = await response.json();
-    console.log("[DEBUG] MLX Server Response:", JSON.stringify(completion, null, 2));
-    const content = completion.choices?.[0]?.message?.content || "";
-    return JSON.parse(cleanResponse(content) || "{}");
+    console.log("[DEBUG] Full completion keys:", Object.keys(completion.choices?.[0]?.message || {}));
+    
+    // The Qwen 3.5 thinking model may put output in 'content' or 'reasoning' field
+    let content = completion.choices?.[0]?.message?.content || "";
+    const reasoning = completion.choices?.[0]?.message?.reasoning || "";
+    
+    // If content is empty but reasoning has data, use reasoning
+    if (!content && reasoning) {
+        console.log("[DEBUG] Content empty, using reasoning field (length:", reasoning.length, ")");
+        content = reasoning;
+    }
+    
+    console.log("[DEBUG] Raw Content (Length: " + content.length + "):", content.substring(0, 500) + "...");
+    console.log("[DEBUG] Finish reason:", completion.choices?.[0]?.finish_reason);
+    
+    try {
+        const cleaned = cleanResponse(content);
+        if (!cleaned) throw new Error("No JSON found in output");
+        return JSON.parse(cleaned);
+    } catch (parseError) {
+        console.error("[DEBUG] JSON Parse Error. Raw content:", content.substring(0, 1000));
+        console.error("[DEBUG] Raw reasoning:", reasoning.substring(0, 1000));
+        throw new Error("Model generated invalid JSON.");
+    }
 };
 
 // Protect wrapper
@@ -129,7 +157,8 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
                 stream: true,
                 max_tokens: 4096
             }),
-            signal: AbortSignal.timeout(900000)
+            signal: AbortSignal.timeout(900000),
+            dispatcher: dispatcher
         });
 
         if (!response.ok) {
@@ -216,7 +245,8 @@ IMPORTANT: Stream directly in markdown. DO NOT wrap with \`\`\`json or output JS
                 messages: [{ role: 'user', content: prompt }],
                 stream: true
             }),
-            signal: AbortSignal.timeout(900000)
+            signal: AbortSignal.timeout(900000),
+            dispatcher: dispatcher
         });
 
         if (!response.ok) {

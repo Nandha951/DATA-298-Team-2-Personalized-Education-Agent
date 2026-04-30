@@ -1,6 +1,29 @@
 const { ChromaClient } = require('chromadb');
 const { v4: uuidv4 } = require('uuid');
 
+// Xenova transformers for local embeddings
+let pipeline = null;
+
+async function getEmbeddingPipeline() {
+    if (!pipeline) {
+        // Dynamically import since it's an ESM package or we use require
+        console.log("[VectorDB] Loading local embedding model (Xenova/all-MiniLM-L6-v2)...");
+        const transformers = await import('@xenova/transformers');
+        // By default, it downloads the model from huggingface and caches it in the file system
+        pipeline = await transformers.pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+        console.log("[VectorDB] Local embedding model loaded successfully.");
+    }
+    return pipeline;
+}
+
+// Generate embedding for a single text
+async function generateEmbedding(text) {
+    const pipe = await getEmbeddingPipeline();
+    // pooling: 'mean' and normalize: true is best practice for semantic search
+    const output = await pipe(text, { pooling: 'mean', normalize: true });
+    return Array.from(output.data);
+}
+
 // Default endpoint for Chroma backend is http://localhost:8000
 const client = new ChromaClient({ path: process.env.CHROMA_URL || "http://localhost:8000" });
 
@@ -28,6 +51,8 @@ const vectorDb = {
         try {
             await client.heartbeat();
             console.log("Vector DB connected successfully!");
+            // Pre-load the model asynchronously so it's ready for the first request
+            getEmbeddingPipeline().catch(e => console.error("[VectorDB] Failed to pre-load embedding model:", e));
         } catch (e) {
             console.warn("ChromaDB Server is not running on port 8000. Vector functionalities will be skipped until it is started.");
         }
@@ -40,14 +65,14 @@ const vectorDb = {
             const collection = await client.getOrCreateCollection({ name: `user_${userId}_documents` });
             
             const chunks = chunkText(markdownContent, 800); 
-            console.log(`[VectorDB] Document chunked into ${chunks.length} sections.`);
+            console.log(`[VectorDB] Document chunked into ${chunks.length} sections. Generating embeddings...`);
             
             for (let i = 0; i < chunks.length; i++) {
                 const chunk = chunks[i];
                 if (!chunk) continue;
 
-                // Mocking embedding locally since we removed external APIs
-                const vector = new Array(384).fill(0).map(() => Math.random());
+                // Generate real local embedding
+                const vector = await generateEmbedding(chunk);
 
                 await collection.add({
                     ids: [uuidv4()],
@@ -68,8 +93,8 @@ const vectorDb = {
             console.log(`[VectorDB] Searching memory for: "${question}" (User: ${userId})`);
             const collection = await client.getCollection({ name: `user_${userId}_documents` });
             
-            // Mocking search vector
-            const searchVector = new Array(384).fill(0).map(() => Math.random());
+            console.log(`[VectorDB] Generating embedding for query...`);
+            const searchVector = await generateEmbedding(question);
 
             console.log(`[VectorDB] Querying collection with retrieved vector...`);
             const results = await collection.query({
@@ -78,7 +103,7 @@ const vectorDb = {
             });
 
             // Flatten results
-            if (results.documents && results.documents[0]) {
+            if (results.documents && results.documents[0] && results.documents[0].length > 0) {
                 const docCount = results.documents[0].length;
                 console.log(`[VectorDB] SUCCESS: Found ${docCount} highly relevant context chunks!`);
                 return results.documents[0].join("\n\n---\n\n");

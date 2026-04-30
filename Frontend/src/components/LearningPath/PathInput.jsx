@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { llmService } from '../../services/llmService';
 import { llamaParseService } from '../../services/llamaParseService';
+import { useLearningPath } from '../../context/LearningPathContext';
 
 
 function PathInput({ onPathGenerated }) {
+    const { changeProvider } = useLearningPath();
     const [input, setInput] = useState('');
     const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+
+    const determineComplexity = (query) => {
+        const q = query.toLowerCase();
+        if (/(basics?|intro|beginner|start|fundamentals?|101)/.test(q)) return 'low';
+        if (/(advanced|architecture|system design|production|fine-tuning|complex|expert)/.test(q)) return 'high';
+        return 'medium';
+    };
 
     const handleFileChange = (e) => {
         if (e.target.files && e.target.files[0]) {
@@ -21,6 +30,10 @@ function PathInput({ onPathGenerated }) {
 
         setLoading(true);
         setError(null);
+
+        // Auto-detect complexity and switch the provider state
+        const complexity = determineComplexity(input || "document analysis");
+        changeProvider(complexity);
 
         let finalQuery = input;
 
