@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from "react";
-import { llmService } from "../services/llmService";
+import { llmService, cleanContent } from "../services/llmService";
 
 const LearningPathContext = createContext();
 
@@ -26,7 +26,15 @@ export const LearningPathProvider = ({ children }) => {
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    setLearningPaths(data);
+                    const cleanedData = data.map(p => ({
+                        ...p,
+                        milestones: p.milestones.map(m => ({
+                            ...m,
+                            content: cleanContent(m.content),
+                            detailedContent: cleanContent(m.detailedContent)
+                        }))
+                    }));
+                    setLearningPaths(cleanedData);
                     if (data.length > 0 && !currentPathId) {
                         setCurrentPathId(data[0].id);
                     }
@@ -70,7 +78,15 @@ export const LearningPathProvider = ({ children }) => {
 
             if (res.ok) {
                 const newPath = await res.json();
-                setLearningPaths(prev => [newPath, ...prev]);
+                const cleanedPath = {
+                    ...newPath,
+                    milestones: newPath.milestones.map(m => ({
+                        ...m,
+                        content: cleanContent(m.content),
+                        detailedContent: cleanContent(m.detailedContent)
+                    }))
+                };
+                setLearningPaths(prev => [cleanedPath, ...prev]);
                 setCurrentPathId(newPath.id);
             }
         } catch (err) {

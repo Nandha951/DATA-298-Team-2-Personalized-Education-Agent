@@ -1,5 +1,44 @@
 let currentComplexity = 'low'; // Default fallback
 
+export const cleanContent = (data) => {
+    if (!data) return data;
+    
+    // If it's a string, try to see if it's actually a JSON object that should be a string
+    if (typeof data === 'string' && data.trim().startsWith('{')) {
+        try {
+            const parsed = JSON.parse(data);
+            // If the parsed object has a key that looks like it contains the content, extract it
+            if (typeof parsed === 'object' && parsed !== null) {
+                const keys = Object.keys(parsed);
+                if (keys.length === 1) {
+                    return cleanContent(parsed[keys[0]]);
+                }
+                // If it's a generic "text" or "content" key
+                if (parsed.content) return cleanContent(parsed.content);
+                if (parsed.text) return cleanContent(parsed.text);
+                if (parsed.detailedContent) return cleanContent(parsed.detailedContent);
+            }
+        } catch (e) {
+            // Not JSON or failed to parse, keep as string
+        }
+    }
+    
+    // Recursive cleaning for objects and arrays
+    if (Array.isArray(data)) {
+        return data.map(cleanContent);
+    }
+    
+    if (typeof data === 'object' && data !== null) {
+        const cleaned = {};
+        for (const [key, value] of Object.entries(data)) {
+            cleaned[key] = cleanContent(value);
+        }
+        return cleaned;
+    }
+    
+    return data;
+};
+
 const generateFromBackend = async (prompt) => {
     const response = await fetch('/api/ai/generate', {
         method: 'POST',
@@ -18,7 +57,8 @@ const generateFromBackend = async (prompt) => {
             throw new Error(`Backend AI Error: ${msg}`);
         }
     }
-    return response.json(); 
+    const data = await response.json();
+    return cleanContent(data); 
 };
 
 export const llmService = {
@@ -166,9 +206,20 @@ export const llmService = {
       
       Generate exactly ONE multiple choice question.
       Return as JSON object with a key "question".
-      Format: { text: "Question text", options: ["A", "B", "C", "D"], correctAnswer: "exact string of correct option", explanation: "Why it is correct", targetConceptId: "the ID of the concept node this question tests (string) from the Available Concepts list if provided" }.
+      Format: { "text": "Question text", "options": ["A", "B", "C", "D"], "correctAnswer": "exact string of correct option", "explanation": "Why it is correct", "targetConceptId": "the ID of the concept node this question tests (string) from the Available Concepts list if provided" }.
+      CRITICAL: The ENTIRE output must be a SINGLE JSON object with the "question" key.
     `;
-        return generateFromBackend(prompt); 
+        const data = await generateFromBackend(prompt);
+        // Robust detection: if data has 'options' and 'text' (or 'question' as a string), it's the raw question object.
+        if (data && data.options && (data.text || typeof data.question === 'string')) {
+            // If 'question' exists but is a string, it's the text. Move it to 'text' if needed.
+            const rawQuestion = { ...data };
+            if (typeof rawQuestion.question === 'string' && !rawQuestion.text) {
+                rawQuestion.text = rawQuestion.question;
+            }
+            return { question: rawQuestion };
+        }
+        return data;
     },
 
     async adjustLearningPath(currentMilestones, adjustmentInstruction) {

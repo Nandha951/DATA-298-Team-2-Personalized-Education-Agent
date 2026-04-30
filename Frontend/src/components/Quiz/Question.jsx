@@ -36,10 +36,12 @@ function Question({ question, onSubmit }) {
 
     return (
         <div className="question-container" style={{ background: 'var(--surface-color)', padding: '40px', borderRadius: '24px', border: '1px solid var(--border-color)', boxShadow: '0 10px 40px rgba(0,0,0,0.04)' }}>
-            <h2 style={{ fontSize: '1.6rem', color: 'var(--text-main)', margin: '0 0 35px 0', lineHeight: '1.5' }}>{question.text}</h2>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: '800', color: 'var(--text-main)', margin: '0 0 40px 0', lineHeight: '1.4', textAlign: 'center' }}>{question.text}</h2>
 
             <div className="options-list" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                {question.options.map((option, index) => {
+                {!question.options || question.options.length === 0 ? (
+                    <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No options provided for this question.</p>
+                ) : question.options.map((option, index) => {
                     const isSelected = selected === option;
                     const isCorrectOption = submitted && option === question.correctAnswer;
                     const isWrongSelection = submitted && isSelected && option !== question.correctAnswer;

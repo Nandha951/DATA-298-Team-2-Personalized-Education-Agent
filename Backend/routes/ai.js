@@ -9,11 +9,17 @@ const router = express.Router();
 // Clean markdown from LLM and extract JSON
 const cleanResponse = (text) => {
     if (typeof text !== 'string') return '';
-    const match = text.match(/\{[\s\S]*\}/);
+    // Strip potential <think> or <reasoning> tags that some models might output
+    let cleaned = text.replace(/<(think|reasoning)>[\s\S]*?<\/\1>/gi, "").trim();
+    
+    // Also handle cases where the tags might be unclosed
+    cleaned = cleaned.replace(/<(think|reasoning)>[\s\S]*/gi, "").trim();
+
+    const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) {
         return match[0];
     }
-    return text.replace(/```json/g, "").replace(/```/g, "").trim();
+    return cleaned.replace(/```json/g, "").replace(/```/g, "").trim();
 };
 
 // Universal Generate Function pointing to local MLX server
@@ -25,7 +31,7 @@ const generateContent = async (complexity, prompt) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
             messages: [
-                { role: "system", content: "You are a helpful educational assistant. Do NOT use any internal reasoning or thinking. Output strictly valid JSON without any conversational filler. Start your response with { and end with }." },
+                { role: "system", content: "You are a helpful educational assistant. Do NOT use any internal reasoning or thinking. Output strictly valid JSON without any conversational filler. Ensure that all string values in your JSON (like 'content', 'detailedContent', or 'answer') are plain text or markdown strings, NOT nested JSON objects. Start your response with { and end with }." },
                 { role: "user", content: prompt }
             ],
             max_tokens: 4096,
@@ -153,9 +159,15 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                messages: [{ role: 'user', content: prompt }],
+                messages: [
+                    { role: "system", content: "You are an expert tutor. Output strictly in markdown format. Use ## for major headers and ### for sub-headers. Always put two newlines before every header. Use bullet points for lists. For code, always use triple backticks (```)." },
+                    { role: 'user', content: prompt }
+                ],
                 stream: true,
-                max_tokens: 4096
+                max_tokens: 4096,
+                temperature: 0.2,
+                top_p: 0.9,
+                stop: ["<|im_end|>", "<|endoftext|>"]
             }),
             signal: AbortSignal.timeout(900000),
             dispatcher: dispatcher
@@ -168,20 +180,25 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
 
+        let streamBuffer = "";
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\\n');
+            streamBuffer += decoder.decode(value, { stream: true });
+            const lines = streamBuffer.split('\n');
+            streamBuffer = lines.pop(); // Keep the potentially incomplete last line
+
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('data: ')) {
+                    const data = trimmedLine.slice(6);
                     if (data === '[DONE]') continue;
                     try {
                         const parsed = JSON.parse(data);
-                        if (parsed.choices[0].delta.content) {
-                            res.write(parsed.choices[0].delta.content);
+                        if (parsed.choices?.[0]?.delta?.content) {
+                            const content = parsed.choices[0].delta.content;
+                            res.write(content);
                         }
                     } catch (e) {
                         // ignore unparseable chunk
@@ -256,22 +273,24 @@ IMPORTANT: Stream directly in markdown. DO NOT wrap with \`\`\`json or output JS
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
 
+        let streamBuffer = "";
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\\n');
+            streamBuffer += decoder.decode(value, { stream: true });
+            const lines = streamBuffer.split('\n');
+            streamBuffer = lines.pop(); 
+
             for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('data: ')) {
+                    const data = trimmedLine.slice(6);
                     if (data === '[DONE]') continue;
                     try {
                         const parsed = JSON.parse(data);
-                        if (parsed.choices[0].delta.content) {
-                            const textChunk = parsed.choices[0].delta.content;
-                            byteCount += textChunk.length;
-                            res.write(textChunk);
+                        if (parsed.choices?.[0]?.delta?.content) {
+                            res.write(parsed.choices[0].delta.content);
                         }
                     } catch (e) {
                         // ignore

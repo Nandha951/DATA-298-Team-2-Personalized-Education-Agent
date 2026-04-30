@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Shared/Navbar';
 import DoubtChat from '../components/AI/DoubtChat';
 import { useLearningPath } from '../context/LearningPathContext';
-import { llmService } from '../services/llmService';
+import { llmService, cleanContent } from '../services/llmService';
 import { llamaParseService } from '../services/llamaParseService';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -88,7 +88,14 @@ function MilestoneDetail() {
       
       Generate a comprehensive, explanatory tutorial for this milestone.
       This content should be educational and explain the concepts clearly. It should be suitable for a student to learn from directly.
-      Output ONLY raw markdown text. Do not wrap in JSON.
+      
+      CRITICAL FORMATTING RULES:
+      1. Use clear, BOLD NUMBERED HEADERS (e.g., ## 1. Topic Name) to partition the content.
+      2. Use ### for sub-headers.
+      3. Use bullet points and numbered lists for details.
+      4. Use **bold text** only for the most important terms.
+      5. CRITICAL: Put TWO NEWLINES (\n\n) between EVERY paragraph and header.
+      6. Output ONLY raw markdown text. Do not wrap in JSON.
             `.trim();
 
             let buffer = "";
@@ -111,14 +118,35 @@ function MilestoneDetail() {
                     // Add characters progressively
                     const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
                     displayContent += stepText;
-                    setMilestone(prev => ({ ...prev, detailedContent: displayContent }));
+                    
+                    // Apply formatting fixes to a temporary copy for display
+                    let formatted = displayContent
+                        .replace(/([^\n])(#{1,6}\s)/g, '$1\n\n$2')
+                        .replace(/([^\n])(\n#{1,6}\s)/g, '$1\n$2')
+                        .replace(/([^\n])(\s?[\*\-]\s)/g, '$1\n$2')
+                        .replace(/([^\n])(```)/g, '$1\n\n$2');
+
+                    setMilestone(prev => ({ ...prev, detailedContent: formatted }));
                 }
                 await new Promise(r => setTimeout(r, 15));
             }
 
+            // Finalize and clean the content
+            let finalizedContent = cleanContent(displayContent);
+            
+            // Post-process to ensure markdown headers have newlines before them
+            // This fixes cases where the model outputs "Text.### Header"
+            if (finalizedContent) {
+                finalizedContent = finalizedContent
+                    .replace(/([^\n])(#{1,6}\s)/g, '$1\n\n$2') // Add newlines before headers
+                    .replace(/([^\n])(---)/g, '$1\n\n$2')      // Add newlines before horizontal rules
+                    .replace(/([^\n])(\n#{1,6}\s)/g, '$1\n$2'); // Ensure at least two newlines
+            }
+            
             // Persist the permanently completed content to database
-            if (displayContent) {
-                updateMilestone(m.id, { detailedContent: displayContent });
+            if (finalizedContent) {
+                updateMilestone(m.id, { detailedContent: finalizedContent });
+                setMilestone(prev => ({ ...prev, detailedContent: finalizedContent }));
             }
         } catch (err) {
             console.error("Failed to stream detailed content", err);
@@ -731,7 +759,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                             </div>
                                         )}
 
-                                        <div style={{ display: 'flex', gap: '15px', flexDirection: 'column', marginTop: 'auto', background: 'var(--bg-color)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
+                                        <div style={{ padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', background: 'var(--bg-color)' }}>
                                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                                                 <button
                                                     onClick={() => {
