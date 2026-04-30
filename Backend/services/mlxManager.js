@@ -13,9 +13,9 @@ const MODELS = {
         chatTemplateArgs: '{"enable_thinking": false}'
     },
     medium: {
-        base: 'meta-llama/Llama-3.1-8B-Instruct',
+        base: 'Qwen/Qwen3.5-4B',
         adapter: 'models/llama_3_1_adapter/llama_3_1_adapter',
-        chatTemplateArgs: null
+        chatTemplateArgs: '{"enable_thinking": false}'
     },
     high: {
         base: 'deepseek-ai/DeepSeek-R1-Distill-Qwen-7B',
