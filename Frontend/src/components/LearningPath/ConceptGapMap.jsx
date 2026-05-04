@@ -88,16 +88,13 @@ export default function ConceptGapMap({ graphData }) {
     };
 
     return (
-        <div className="concept-gap-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <span style={{ fontSize: '1.5rem' }}>🎯</span> Concept Gap Map
-                </h2>
-                <div style={{ display: 'flex', gap: '15px', fontSize: '12px', fontWeight: 'bold' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981' }}></div> Mastered</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b' }}></div> Learning</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#ef4444' }}></div> Gap</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: 10, height: 10, borderRadius: '50%', background: '#e2e8f0' }}></div> Locked</div>
+        <div className="concept-gap-container" style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '15px', fontSize: '0.85rem', fontWeight: 'bold', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 8px rgba(16,185,129,0.4)' }}></div> Mastered</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, borderRadius: '50%', background: '#f59e0b', boxShadow: '0 0 8px rgba(245,158,11,0.4)' }}></div> Learning</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, borderRadius: '50%', background: '#ef4444', boxShadow: '0 0 8px rgba(239,68,68,0.4)' }}></div> Gap</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><div style={{ width: 12, height: 12, borderRadius: '50%', background: '#e2e8f0' }}></div> Locked</div>
                 </div>
             </div>
 
@@ -124,49 +121,83 @@ export default function ConceptGapMap({ graphData }) {
             </div>
 
             <div style={{ 
-                padding: '24px', 
-                background: 'var(--glass-bg)', 
-                backdropFilter: 'blur(12px)', 
+                padding: '25px', 
+                background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.05), rgba(59, 130, 246, 0.05))', 
                 borderRadius: '16px', 
-                border: '1px solid var(--glass-border)',
+                border: '1px solid rgba(124, 58, 237, 0.2)',
                 display: 'flex',
                 gap: '20px',
-                alignItems: 'flex-start'
+                alignItems: 'flex-start',
+                marginTop: '10px'
             }}>
                 <div style={{ 
-                    width: '40px', 
-                    height: '40px', 
-                    borderRadius: '50%', 
-                    background: 'var(--primary-light)', 
-                    color: 'var(--primary)', 
+                    width: '48px', 
+                    height: '48px', 
+                    borderRadius: '14px', 
+                    background: 'linear-gradient(135deg, var(--primary), var(--secondary))', 
+                    color: 'white', 
                     display: 'flex', 
                     justifyContent: 'center', 
                     alignItems: 'center', 
-                    fontSize: '20px',
-                    flexShrink: 0
+                    fontSize: '1.5rem',
+                    flexShrink: 0,
+                    boxShadow: '0 4px 15px rgba(124, 58, 237, 0.3)'
                 }}>
                     💡
                 </div>
-                <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '20px' }}>
-                        <h3 style={{ fontSize: '1.2rem', margin: 0, color: 'var(--text-main)' }}>AI Root-Cause Analysis</h3>
-                        <button onClick={handleAnalyze} disabled={loadingRca} style={{ padding: '6px 12px', fontSize: '14px', borderRadius: '6px', cursor: loadingRca ? 'wait' : 'pointer' }}>
-                            {loadingRca ? 'Analyzing Map...' : 'Generate Analysis'}
+                <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap', gap: '15px' }}>
+                        <div>
+                            <h3 style={{ fontSize: '1.3rem', margin: '0 0 5px 0', color: 'var(--text-main)' }}>AI Root-Cause Analysis</h3>
+                            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-muted)' }}>Identify exactly why you are stuck on certain concepts.</p>
+                        </div>
+                        <button 
+                            onClick={handleAnalyze} 
+                            disabled={loadingRca} 
+                            style={{ 
+                                padding: '10px 20px', 
+                                fontSize: '0.95rem', 
+                                borderRadius: '10px', 
+                                background: loadingRca ? 'var(--surface-color)' : 'white',
+                                color: loadingRca ? 'var(--text-muted)' : 'var(--primary)',
+                                border: '1px solid var(--primary-light)',
+                                fontWeight: 'bold',
+                                cursor: loadingRca ? 'wait' : 'pointer',
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.05)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                transition: 'all 0.2s'
+                            }}
+                        >
+                            {loadingRca ? (
+                                <>
+                                    <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px', borderColor: 'var(--text-muted)', borderTopColor: 'transparent' }}></div>
+                                    Analyzing Map...
+                                </>
+                            ) : (
+                                <>
+                                    <span>✨</span> Generate Analysis
+                                </>
+                            )}
                         </button>
                     </div>
                     
-                    {rca ? (
-                        <>
-                            <p style={{ color: 'var(--text-main)', marginBottom: '12px', fontWeight: '500' }} dangerouslySetInnerHTML={{ __html: rca.insight }}></p>
-                            <p style={{ color: 'var(--text-muted)' }}>
-                                <strong style={{ color: 'var(--primary)' }}>Recommended path:</strong> <span dangerouslySetInnerHTML={{ __html: rca.recommendation }}></span>
-                            </p>
-                        </>
-                    ) : (
-                        <p style={{ color: 'var(--text-muted)' }}>
-                            Click "Generate Analysis" to have the AI analyze your current Concept Map and find the hidden root causes of your knowledge gaps!
-                        </p>
-                    )}
+                    <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', minHeight: '80px' }}>
+                        {rca ? (
+                            <>
+                                <div style={{ color: 'var(--text-main)', marginBottom: '15px', fontWeight: '500', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: rca.insight }}></div>
+                                <div style={{ color: 'var(--text-main)', background: 'rgba(59, 130, 246, 0.05)', padding: '15px', borderRadius: '8px', borderLeft: '4px solid #3b82f6', lineHeight: '1.6' }}>
+                                    <strong style={{ color: '#3b82f6', display: 'block', marginBottom: '5px' }}>Recommended Path:</strong> 
+                                    <span dangerouslySetInnerHTML={{ __html: rca.recommendation }}></span>
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontStyle: 'italic' }}>
+                                Click "Generate Analysis" to have the AI analyze your current Concept Map and find the hidden root causes of your knowledge gaps!
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>

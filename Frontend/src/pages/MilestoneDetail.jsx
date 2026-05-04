@@ -109,11 +109,11 @@ function MilestoneDetail() {
             while (!isStreamDone || displayContent.length < buffer.length) {
                 if (displayContent.length < buffer.length) {
                     // Add characters progressively
-                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
                     setMilestone(prev => ({ ...prev, detailedContent: displayContent }));
                 }
-                await new Promise(r => setTimeout(r, 15));
+                await new Promise(r => setTimeout(r, 40));
             }
 
             // Persist the permanently completed content to database
@@ -186,7 +186,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
 
             while (!isStreamDone || displayContent.length < buffer.length) {
                 if (displayContent.length < buffer.length) {
-                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
 
                     let updatedUI = currentContentSnapshot;
@@ -197,7 +197,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                     }
                     setMilestone(prev => ({ ...prev, detailedContent: updatedUI }));
                 }
-                await new Promise(r => setTimeout(r, 15));
+                await new Promise(r => setTimeout(r, 40));
             }
 
             // Finalize the replacement without glowing wrappers
@@ -260,7 +260,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
 
             while (!isStreamDone || displayContent.length < buffer.length) {
                 if (displayContent.length < buffer.length) {
-                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
+                    const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
                     setActionState(prev => {
                         const newHistory = [...prev.chatHistory];
@@ -269,7 +269,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                         return { ...prev, chatHistory: newHistory };
                     });
                 }
-                await new Promise(r => setTimeout(r, 15));
+                await new Promise(r => setTimeout(r, 40));
             }
 
             console.log(`[AskModal] Stream generation completed successfully. Total length: ${displayContent.length} chars.`);
@@ -453,22 +453,38 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
 
                     <div style={{ padding: '24px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                         <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px' }}>Learning Path</h3>
-                        <PathAdjuster />
+                        <PathAdjuster compact={true} />
                     </div>
                 </div>
 
                 {/* Main Content */}
                 <div className="main-content" style={{ background: 'var(--surface-color)', padding: '40px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.05)' }}>
-                    <h1 style={{
-                        marginTop: 0,
-                        marginBottom: '30px',
-                        fontSize: '2.5rem',
-                        background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent'
-                    }}>
-                        {milestone.title}
-                    </h1>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+                        <h1 style={{
+                            margin: 0,
+                            fontSize: '2.5rem',
+                            background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent'
+                        }}>
+                            {milestone.title}
+                        </h1>
+                        <button 
+                            onClick={() => {
+                                const blob = new Blob([milestone.detailedContent || milestone.content], { type: 'text/markdown' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${milestone.title.replace(/\s+/g, '_')}_Lesson.md`;
+                                a.click();
+                                URL.revokeObjectURL(url);
+                            }}
+                            disabled={!milestone.detailedContent && !milestone.content}
+                            style={{ padding: '10px 18px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface-color)', color: 'var(--primary)', border: '1px solid var(--primary-light)', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}
+                        >
+                            <span>📥</span> Export Lesson (.md)
+                        </button>
+                    </div>
 
                     <div className="milestone-content">
                         {generatingContent && !milestone.detailedContent && (

@@ -43,6 +43,39 @@ function Dashboard() {
                     </Link>
                 </div>
 
+                {/* Quick Stats Grid */}
+                {milestones.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '40px' }}>
+                        <div style={{ background: 'var(--surface-color)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>Overall Progress</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-main)', marginBottom: '10px' }}>
+                                {Math.round(milestones.reduce((acc, m) => acc + (m.progress || 0), 0) / milestones.length)}%
+                            </div>
+                            <div className="progress-bar" style={{ margin: 0, height: '6px' }}>
+                                <div className="progress-fill" style={{ width: `${milestones.reduce((acc, m) => acc + (m.progress || 0), 0) / milestones.length}%` }}></div>
+                            </div>
+                        </div>
+                        <div style={{ background: 'var(--surface-color)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>Milestones Done</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                                {milestones.filter(m => m.completed).length} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>/ {milestones.length}</span>
+                            </div>
+                            <div style={{ marginTop: '10px', fontSize: '0.85rem', color: 'var(--success)', fontWeight: '600' }}>
+                                🏆 {milestones.filter(m => m.completed).length === milestones.length ? 'Curriculum Finished!' : 'Keep going!'}
+                            </div>
+                        </div>
+                        <div style={{ background: 'var(--surface-color)', padding: '20px', borderRadius: '16px', border: '1px solid var(--border-color)', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px' }}>Learning Streak</div>
+                            <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--text-main)' }}>
+                                {learningPaths.length} <span style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: 'normal' }}>Paths Active</span>
+                            </div>
+                            <div style={{ marginTop: '10px', fontSize: '0.85rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                🔥 Consistent Learner
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 {/* Path Selector Card */}
                 {learningPaths && learningPaths.length > 0 && (
                     <div className="path-selector" style={{ 

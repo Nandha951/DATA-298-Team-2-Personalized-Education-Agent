@@ -82,11 +82,11 @@ export const LearningPathProvider = ({ children }) => {
         if (!currentPathId) return;
 
         // Optimistic UI Update
-        const updatedMilestones = milestones.map((m) =>
-            (String(m.id) === String(id) ? { ...m, ...updatedData } : m)
-        );
         setLearningPaths(prev => prev.map(path => {
             if (String(path.id) === String(currentPathId)) {
+                const updatedMilestones = path.milestones.map((m) =>
+                    (String(m.id) === String(id) ? { ...m, ...updatedData } : m)
+                );
                 return { ...path, milestones: updatedMilestones };
             }
             return path;

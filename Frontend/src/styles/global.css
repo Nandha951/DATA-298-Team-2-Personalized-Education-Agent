@@ -2,9 +2,9 @@
 
 :root {
     /* Color Palette */
-    --primary: #4f46e5;
-    --primary-hover: #4338ca;
-    --primary-light: #e0e7ff;
+    --primary: #6366f1;
+    --primary-hover: #4f46e5;
+    --primary-light: rgba(99, 102, 241, 0.1);
     --secondary: #ec4899;
     --bg-color: #f8fafc;
     --surface-color: #ffffff;
@@ -22,6 +22,21 @@
     --error: #ef4444;
     --error-light: #fee2e2;
     --warning: #f59e0b;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg-color: #0f172a;
+        --surface-color: #1e293b;
+        --text-main: #f1f5f9;
+        --text-muted: #94a3b8;
+        --border-color: #334155;
+        
+        --glass-bg: rgba(30, 41, 59, 0.7);
+        --glass-border: rgba(255, 255, 255, 0.1);
+        
+        --primary-light: rgba(99, 102, 241, 0.15);
+    }
 }
 
 * {
