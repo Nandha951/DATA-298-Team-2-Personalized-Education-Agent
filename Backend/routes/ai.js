@@ -8,6 +8,15 @@ const GEMINI_API_KEY = process.env.VITE_GEMINI_API_KEY;
 const OPENAI_API_KEY = process.env.VITE_OPENAI_API_KEY;
 const DEEPSEEK_API_KEY = process.env.VITE_DEEPSEEK_API_KEY;
 
+// URL for the finetuned model server (Modal or local FastAPI)
+// Set FINETUNED_API_URL in .env to the Modal endpoint, e.g.:
+//   FINETUNED_API_URL=https://<workspace>--piab-inference-inferenceserver-ask.modal.run
+// Falls back to local FastAPI on port 8001 if not set.
+const FINETUNED_API_URL = process.env.FINETUNED_API_URL || 'http://localhost:8001/ask';
+
+// If finetuned model takes longer than this, fall back to DeepSeek API
+const FINETUNED_TIMEOUT_MS = parseInt(process.env.FINETUNED_TIMEOUT_MS || '30000', 10);
+
 // Clean markdown from LLM
 const cleanResponse = (text) => text.replace(/```json/g, "").replace(/```/g, "").trim();
 
@@ -23,6 +32,35 @@ const deepseekClient = DEEPSEEK_API_KEY ? new OpenAI({ baseURL: 'https://api.dee
 
 const OPENAI_MODEL = process.env.VITE_OPENAI_MODEL || "gpt-4o-mini";
 const DEEPSEEK_MODEL = process.env.VITE_DEEPSEEK_MODEL || "deepseek-chat";
+
+// Call finetuned FastAPI server with a hard timeout.
+// Returns { answer, model_used, latency_ms } or throws on timeout/error.
+const callFinetunedServer = async (modelName, question) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FINETUNED_TIMEOUT_MS);
+    try {
+        const t0 = Date.now();
+        const resp = await fetch(FINETUNED_API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ question, model: modelName }),
+            signal: controller.signal,
+        });
+        clearTimeout(timer);
+        if (!resp.ok) throw new Error(`Finetuned server error: ${resp.status}`);
+        const data = await resp.json();
+        console.log(`[Finetuned] ${modelName} answered in ${Date.now() - t0}ms`);
+        return data.answer;
+    } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') throw new Error(`TIMEOUT: finetuned-${modelName} exceeded ${FINETUNED_TIMEOUT_MS}ms`);
+        throw err;
+    }
+};
+
+// Wrap finetuned answer as JSON so it fits the existing generateContent contract.
+// The finetuned model returns plain text, not structured JSON, so we wrap it.
+const fineTunedToJson = (answer, key = 'answer') => ({ [key]: answer });
 
 // Universal Generate Function
 const generateContent = async (provider, prompt) => {
@@ -48,6 +86,29 @@ const generateContent = async (provider, prompt) => {
             response_format: { type: "json_object" },
         });
         return JSON.parse(cleanResponse(completion.choices[0].message.content));
+    } else if (provider === 'finetuned-deepseek' || provider === 'finetuned-mistral') {
+        const modelName = provider === 'finetuned-deepseek' ? 'deepseek' : 'mistral';
+        try {
+            const answer = await callFinetunedServer(modelName, prompt);
+            // Try to parse as JSON in case the model returned valid JSON, otherwise wrap it
+            try { return JSON.parse(cleanResponse(answer)); } catch (_) {}
+            return fineTunedToJson(answer);
+        } catch (err) {
+            if (err.message.startsWith('TIMEOUT') || err.message.includes('ECONNREFUSED')) {
+                console.warn(`[Finetuned] ${err.message} — falling back to DeepSeek API`);
+                if (!deepseekClient) throw new Error("Finetuned server unavailable and DeepSeek API Key not configured for fallback");
+                const completion = await deepseekClient.chat.completions.create({
+                    messages: [
+                        { role: "system", content: "You are a helpful educational assistant. Output strictly valid JSON." },
+                        { role: "user", content: prompt }
+                    ],
+                    model: DEEPSEEK_MODEL,
+                    response_format: { type: "json_object" },
+                });
+                return JSON.parse(cleanResponse(completion.choices[0].message.content));
+            }
+            throw err;
+        }
     } else {
         // Fallback or explicit gemini
         const result = await geminiModel.generateContent(prompt);
@@ -162,8 +223,32 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
             for await (const chunk of stream) {
                 res.write(chunk.choices[0]?.delta?.content || '');
             }
+        } else if (provider === 'finetuned-deepseek' || provider === 'finetuned-mistral') {
+            // Finetuned models don't support streaming — call synchronously then write all at once
+            const modelName = provider === 'finetuned-deepseek' ? 'deepseek' : 'mistral';
+            let answer;
+            try {
+                answer = await callFinetunedServer(modelName, prompt);
+            } catch (err) {
+                if (err.message.startsWith('TIMEOUT') || err.message.includes('ECONNREFUSED')) {
+                    console.warn(`[Finetuned stream-generate] ${err.message} — falling back to DeepSeek API`);
+                    if (!deepseekClient) throw new Error("Finetuned server unavailable and DeepSeek API Key not configured for fallback");
+                    const stream = await deepseekClient.chat.completions.create({
+                        model: DEEPSEEK_MODEL,
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true,
+                    });
+                    for await (const chunk of stream) {
+                        res.write(chunk.choices[0]?.delta?.content || '');
+                    }
+                    res.end();
+                    return;
+                }
+                throw err;
+            }
+            res.write(answer);
         } else {
-            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" });
             const result = await streamModel.generateContentStream(prompt);
             for await (const chunk of result.stream) {
                 res.write(chunk.text());
@@ -247,8 +332,35 @@ IMPORTANT: Stream directly in markdown. DO NOT wrap with \`\`\`json or output JS
                 byteCount += textChunk.length;
                 res.write(textChunk);
             }
+        } else if (provider === 'finetuned-deepseek' || provider === 'finetuned-mistral') {
+            const modelName = provider === 'finetuned-deepseek' ? 'deepseek' : 'mistral';
+            let answer;
+            try {
+                answer = await callFinetunedServer(modelName, question);
+            } catch (err) {
+                if (err.message.startsWith('TIMEOUT') || err.message.includes('ECONNREFUSED')) {
+                    console.warn(`[Finetuned stream-rag] ${err.message} — falling back to DeepSeek API`);
+                    if (!deepseekClient) throw new Error("Finetuned server unavailable and DeepSeek API Key not configured for fallback");
+                    const stream = await deepseekClient.chat.completions.create({
+                        model: DEEPSEEK_MODEL,
+                        messages: [{ role: 'user', content: prompt }],
+                        stream: true,
+                    });
+                    for await (const chunk of stream) {
+                        const textChunk = chunk.choices[0]?.delta?.content || '';
+                        byteCount += textChunk.length;
+                        res.write(textChunk);
+                    }
+                    res.end();
+                    console.log(`[Stream API] Fallback finished. Piped ${byteCount} bytes.`);
+                    return;
+                }
+                throw err;
+            }
+            byteCount = answer.length;
+            res.write(answer);
         } else {
-            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" }); 
+            const streamModel = geminiClient.getGenerativeModel({ model: "gemini-flash-latest" });
             const result = await streamModel.generateContentStream(prompt);
             for await (const chunk of result.stream) {
                 const textChunk = chunk.text();

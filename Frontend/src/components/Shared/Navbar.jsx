@@ -40,7 +40,9 @@ function Navbar() {
                     >
                         <option value="gemini">Google Gemini</option>
                         <option value="openai">OpenAI (GPT-4o)</option>
-                        <option value="deepseek">Deepseek V3</option>
+                        <option value="deepseek">DeepSeek V3 (API)</option>
+                        <option value="finetuned-deepseek">DeepSeek R1 (Finetuned)</option>
+                        <option value="finetuned-mistral">Mistral 7B (Finetuned)</option>
                     </select>
                 </div>
             </div>
