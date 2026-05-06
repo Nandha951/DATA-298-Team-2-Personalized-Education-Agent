@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import Navbar from '../components/Shared/Navbar';
 import DoubtChat from '../components/AI/DoubtChat';
 import { useLearningPath } from '../context/LearningPathContext';
+import { BACKEND_URL } from '../services/config';
 import { llmService } from '../services/llmService';
 import { llamaParseService } from '../services/llamaParseService';
 import ReactMarkdown from 'react-markdown';
@@ -353,7 +354,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
             return { ...prev, threads: updatedThreads };
         });
 
-        await fetch('/api/chats', {
+        await fetch(`${BACKEND_URL}/api/chats`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ role, content, contextRef: threadId })

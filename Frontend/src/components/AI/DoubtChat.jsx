@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import ReactMarkdown from 'react-markdown';
 import { llmService } from '../../services/llmService';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
+import { BACKEND_URL } from '../../services/config';
 
 function DoubtChat({ milestoneId }) {
     const [messages, setMessages] = useState([]);
@@ -61,7 +62,7 @@ function DoubtChat({ milestoneId }) {
         const token = localStorage.getItem('auth_token');
         if (!token) return;
 
-        await fetch('/api/chats', {
+        await fetch(`${BACKEND_URL}/api/chats`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',

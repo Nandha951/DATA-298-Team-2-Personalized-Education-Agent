@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Navbar from '../components/Shared/Navbar';
+import { BACKEND_URL } from '../services/config';
 
 function Signup() {
   const [name, setName] = useState('');
@@ -17,7 +18,7 @@ function Signup() {
     setError('');
 
     try {
-      const response = await fetch('/api/auth/signup', {
+      const response = await fetch(`${BACKEND_URL}/api/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, password }),

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { llmService } from "../services/llmService";
+import { BACKEND_URL } from "../services/config";
 
 const LearningPathContext = createContext();
 
@@ -15,7 +16,7 @@ export const LearningPathProvider = ({ children }) => {
             if (!token) return;
 
             try {
-                const res = await fetch('/api/paths', {
+                const res = await fetch(`${BACKEND_URL}/api/paths`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
@@ -53,7 +54,7 @@ export const LearningPathProvider = ({ children }) => {
         if (!token) return;
 
         try {
-            const res = await fetch('/api/paths', {
+            const res = await fetch(`${BACKEND_URL}/api/paths`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

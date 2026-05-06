@@ -1,7 +1,9 @@
 let currentProvider = 'gemini';
 
+const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+
 const generateFromBackend = async (prompt) => {
-    const response = await fetch('/api/ai/generate', {
+    const response = await fetch(`${BACKEND}/api/ai/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ provider: currentProvider, prompt })
@@ -76,7 +78,7 @@ export const llmService = {
     async getDoubtAnswer(question) {
         // Fallback for non-streaming components
         const token = localStorage.getItem('auth_token');
-        const response = await fetch('/api/ai/ask-rag', {
+        const response = await fetch(`${BACKEND}/api/ai/ask-rag`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -94,7 +96,7 @@ export const llmService = {
 
     async *streamDoubtAnswer(question) {
         const token = localStorage.getItem('auth_token');
-        const response = await fetch('/api/ai/stream-rag', {
+        const response = await fetch(`${BACKEND}/api/ai/stream-rag`, {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
@@ -118,7 +120,7 @@ export const llmService = {
     },
 
     async *streamGenericContent(prompt) {
-        const response = await fetch('/api/ai/stream-generate', {
+        const response = await fetch(`${BACKEND}/api/ai/stream-generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ provider: currentProvider, prompt })

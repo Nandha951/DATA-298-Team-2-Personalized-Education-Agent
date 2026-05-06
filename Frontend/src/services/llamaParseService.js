@@ -1,3 +1,5 @@
+import { BACKEND_URL } from './config';
+
 export const llamaParseService = {
     async parseFile(file) {
         const formData = new FormData();
@@ -9,7 +11,7 @@ export const llamaParseService = {
             if (!token) throw new Error("Authentication required to upload files");
 
             // Upload to the Express Server
-            const response = await fetch('/api/uploads/document', {
+            const response = await fetch(`${BACKEND_URL}/api/uploads/document`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`

@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: piab-backend
+    runtime: docker
+    dockerfilePath: ./Backend/Dockerfile
+    dockerContext: ./Backend
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        value: file:/data/prisma/dev.db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: VITE_GEMINI_API_KEY
+        sync: false
+      - key: VITE_OPENAI_API_KEY
+        sync: false
+      - key: VITE_DEEPSEEK_API_KEY
+        sync: false
+      - key: VITE_OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: VITE_DEEPSEEK_MODEL
+        value: deepseek-chat
+      - key: FINETUNED_API_URL
+        sync: false
+      - key: FINETUNED_TIMEOUT_MS
+        value: 30000
+      - key: CHROMA_URL
+        value: http://localhost:8000
+      - key: LLAMA_CLOUD_API_KEY
+        sync: false
