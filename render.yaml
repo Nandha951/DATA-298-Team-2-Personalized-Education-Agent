@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: VITE_GEMINI_API_KEY
-        sync: false          # paste your Gemini key in the Render dashboard
+        value: AIzaSyColkDiNC775P3-hL-pnS86z28Ixggn_qA
       - key: VITE_OPENAI_API_KEY
         sync: false
       - key: VITE_DEEPSEEK_API_KEY
@@ -45,7 +45,7 @@ services:
     staticPublishPath: Frontend/dist
     envVars:
       - key: VITE_GEMINI_API_KEY
-        sync: false          # same Gemini key as above
+        value: AIzaSyColkDiNC775P3-hL-pnS86z28Ixggn_qA
       # Set this to the piab-backend URL after the backend deploys:
       # e.g. https://piab-backend.onrender.com
       - key: VITE_BACKEND_URL
