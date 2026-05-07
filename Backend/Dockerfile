@@ -1,8 +1,6 @@
 FROM node:20-slim
 
-# Install Python + pip for ChromaDB server
-RUN apt-get update && apt-get install -y python3 python3-pip curl && rm -rf /var/lib/apt/lists/*
-RUN pip3 install chromadb --break-system-packages
+RUN apt-get update && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -11,7 +9,7 @@ RUN npm ci --omit=dev
 
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client for the container's OS
 RUN npx prisma generate
 
 EXPOSE 4000

@@ -1,11 +1,12 @@
 services:
+  # ── Backend API (Node.js + Express + SQLite) ───────────────────────────────
   - type: web
     name: piab-backend
     runtime: docker
     dockerfilePath: ./Backend/Dockerfile
     dockerContext: ./Backend
     disk:
-      name: data
+      name: piab-data
       mountPath: /data
       sizeGB: 1
     envVars:
@@ -16,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: VITE_GEMINI_API_KEY
-        sync: false
+        sync: false          # paste your Gemini key in the Render dashboard
       - key: VITE_OPENAI_API_KEY
         sync: false
       - key: VITE_DEEPSEEK_API_KEY
@@ -25,16 +26,30 @@ services:
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
         value: deepseek-chat
-      # Paste Modal URLs here after running: modal deploy modal_server.py
-      # Example: https://<workspace>--piab-inference-inferenceserver-ask.modal.run
+      # Finetuned model server — set after running: modal deploy modal_server.py
       - key: FINETUNED_ASK_URL
         sync: false
-      # Example: https://<workspace>--piab-inference-inferenceserver-ask-stream.modal.run
       - key: FINETUNED_STREAM_URL
         sync: false
       - key: FINETUNED_TIMEOUT_MS
         value: 120000
-      - key: CHROMA_URL
-        value: http://localhost:8000
       - key: LLAMA_CLOUD_API_KEY
         sync: false
+
+  # ── Frontend (React + Vite static site) ───────────────────────────────────
+  - type: web
+    name: piab-frontend
+    runtime: static
+    buildCommand: cd Frontend && npm ci && npm run build
+    staticPublishPath: Frontend/dist
+    envVars:
+      - key: VITE_GEMINI_API_KEY
+        sync: false          # same Gemini key as above
+      # Set this to the piab-backend URL after the backend deploys:
+      # e.g. https://piab-backend.onrender.com
+      - key: VITE_BACKEND_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

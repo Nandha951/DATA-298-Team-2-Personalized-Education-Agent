@@ -1,4 +1,5 @@
 require('dotenv').config({ path: '../Frontend/.env' });
+require('dotenv').config(); // also load .env from Backend/ if present
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
@@ -19,7 +20,16 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'super_secret_key_dev';
 
-app.use(cors());
+app.use(cors({
+    origin: [
+        'https://nandha951.github.io',
+        'https://piab-frontend.onrender.com',
+        /\.onrender\.com$/,
+        'http://localhost:5173',
+        'http://localhost:4173',
+    ],
+    credentials: true,
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
