@@ -123,7 +123,10 @@ const pipeFinetunedStream = async (modelName, question, res) => {
 };
 
 const isTimeoutOrDown = (err) =>
-    err.message.startsWith('TIMEOUT') || err.message.includes('ECONNREFUSED');
+    err.message.startsWith('TIMEOUT') || 
+    err.message.includes('ECONNREFUSED') ||
+    err.message.includes('fetch failed') ||
+    err.message.startsWith('Finetuned server HTTP');
 
 // Fall back to DeepSeek API stream when finetuned server is slow/down
 const fallbackToDeepSeekStream = async (prompt, res) => {
