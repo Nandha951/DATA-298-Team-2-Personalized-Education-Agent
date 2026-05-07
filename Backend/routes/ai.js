@@ -69,7 +69,9 @@ const callFinetunedBatch = async (modelName, question) => {
     }
 };
 
-// SSE streaming — reads Modal SSE chunks and writes plain text tokens to res
+// SSE streaming — reads Modal SSE chunks and writes plain text tokens to res.
+// If the endpoint returns plain JSON (old Modal deployment without /ask-stream),
+// it detects this from Content-Type and falls back to writing the full answer at once.
 const pipeFinetunedStream = async (modelName, question, res) => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), FINETUNED_TIMEOUT_MS);
@@ -82,6 +84,14 @@ const pipeFinetunedStream = async (modelName, question, res) => {
         });
         clearTimeout(timer);
         if (!resp.ok) throw new Error(`Finetuned stream HTTP ${resp.status}`);
+
+        // Old Modal deployment returns JSON, not SSE — detect and handle gracefully
+        const contentType = resp.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+            const data = await resp.json();
+            if (data.answer) res.write(data.answer);
+            return;
+        }
 
         const reader  = resp.body.getReader();
         const decoder = new TextDecoder();

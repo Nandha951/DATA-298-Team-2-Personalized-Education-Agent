@@ -26,11 +26,14 @@ services:
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
         value: deepseek-chat
-      # Finetuned model server — set after running: modal deploy modal_server.py
+      # Existing Modal deployment (batch endpoint — works immediately)
       - key: FINETUNED_ASK_URL
-        sync: false
+        value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-5f6054.modal.run
+      # Stream endpoint — update this after running: modal deploy modal_server.py
+      # New URL will be: https://basanth-periyapatnaroopakumar--piab-inference-inferenceserver-ask-stream.modal.run
+      # Until then, backend auto-detects JSON response and writes full answer at once (graceful fallback)
       - key: FINETUNED_STREAM_URL
-        sync: false
+        value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-5f6054.modal.run
       - key: FINETUNED_TIMEOUT_MS
         value: 120000
       - key: LLAMA_CLOUD_API_KEY
