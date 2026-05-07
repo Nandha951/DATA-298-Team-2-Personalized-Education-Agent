@@ -8,7 +8,7 @@ mkdir -p /data/prisma
 npx prisma migrate deploy
 
 # Start ChromaDB server in the background on port 8000
-chromadb run --host 0.0.0.0 --port 8000 --path /data/chromadb &
+chroma run --host 0.0.0.0 --port 8000 --path /data/chromadb &
 
 # Wait for ChromaDB to be ready before starting Node.js
 echo "Waiting for ChromaDB..."
