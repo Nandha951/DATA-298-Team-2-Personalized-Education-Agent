@@ -11,6 +11,12 @@ function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const handleDemoMode = () => {
+    localStorage.setItem('auth_token', 'demo-token');
+    localStorage.setItem('user', JSON.stringify({ id: 'demo', email: 'demo@piab.ai', name: 'Demo User' }));
+    navigate('/dashboard');
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -82,7 +88,17 @@ function Login() {
               {loading ? 'Logging In...' : 'Log In'}
             </button>
           </form>
-          <p style={{ textAlign: 'center', marginTop: '25px', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
+          <div style={{ margin: '20px 0 0', textAlign: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '0 0 16px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+              <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
+            </div>
+            <button onClick={handleDemoMode} style={{ width: '100%', padding: '13px', background: 'var(--surface-color)', color: 'var(--primary)', border: '2px solid var(--primary-light)', borderRadius: '10px', cursor: 'pointer', fontWeight: '700', fontSize: '1rem', transition: 'all 0.2s' }}>
+              Try Demo (no account needed)
+            </button>
+          </div>
+          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.95rem', color: 'var(--text-muted)' }}>
             Don't have an account? <Link to="/signup" style={{ color: 'var(--primary)', fontWeight: '600', textDecoration: 'none' }}>Sign up here</Link>
           </p>
         </div>

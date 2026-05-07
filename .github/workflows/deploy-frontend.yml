@@ -38,13 +38,11 @@ jobs:
       - name: Build
         env:
           BASE_URL: /DATA-298-Team-2-Personalized-Education-Agent/
-          # Point the frontend at the deployed backend (set this secret in GitHub repo settings)
-          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
+          # Gemini API key — used directly from browser when no backend is running
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
-          VITE_OPENAI_API_KEY: ${{ secrets.VITE_OPENAI_API_KEY }}
-          VITE_DEEPSEEK_API_KEY: ${{ secrets.VITE_DEEPSEEK_API_KEY }}
-          VITE_OPENAI_MODEL: ${{ secrets.VITE_OPENAI_MODEL }}
-          VITE_DEEPSEEK_MODEL: ${{ secrets.VITE_DEEPSEEK_MODEL }}
+          # Optional: set VITE_BACKEND_URL when a backend is deployed (Render etc.)
+          # Leave empty to run in fully-static demo mode (Gemini direct from browser)
+          VITE_BACKEND_URL: ${{ secrets.VITE_BACKEND_URL }}
         run: npm run build
 
       - name: Upload Pages artifact

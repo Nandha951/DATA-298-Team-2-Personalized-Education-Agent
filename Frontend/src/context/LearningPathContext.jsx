@@ -9,11 +9,18 @@ export const LearningPathProvider = ({ children }) => {
     const [currentPathId, setCurrentPathId] = useState(null);
     const [selectedProvider, setSelectedProvider] = useState(() => localStorage.getItem("llm_provider") || 'gemini');
 
-    // Fetch paths from backend on mount
+    // Fetch paths — from backend when available, localStorage otherwise (demo mode)
     useEffect(() => {
         const fetchPaths = async () => {
             const token = localStorage.getItem('auth_token');
             if (!token) return;
+
+            if (!BACKEND_URL) {
+                const saved = JSON.parse(localStorage.getItem('demo_paths') || '[]');
+                setLearningPaths(saved);
+                if (saved.length > 0) setCurrentPathId(saved[0].id);
+                return;
+            }
 
             try {
                 const res = await fetch(`${BACKEND_URL}/api/paths`, {
@@ -22,16 +29,14 @@ export const LearningPathProvider = ({ children }) => {
                 if (res.ok) {
                     const data = await res.json();
                     setLearningPaths(data);
-                    if (data.length > 0 && !currentPathId) {
-                        setCurrentPathId(data[0].id);
-                    }
+                    if (data.length > 0 && !currentPathId) setCurrentPathId(data[0].id);
                 }
             } catch (err) {
                 console.error("Failed to fetch paths:", err);
             }
         };
         fetchPaths();
-    }, []); // Only on mount. A real app might re-trigger on login.
+    }, []);
 
     // Derived state for current path's milestones
     const currentPath = learningPaths.find(p => String(p.id) === String(currentPathId));
@@ -53,16 +58,28 @@ export const LearningPathProvider = ({ children }) => {
         const token = localStorage.getItem('auth_token');
         if (!token) return;
 
+        if (!BACKEND_URL) {
+            const newPath = {
+                id: Date.now().toString(),
+                topic: title || 'New Learning Path',
+                milestones: newMilestones,
+                graphData: graphData ? JSON.stringify(graphData) : null,
+            };
+            setLearningPaths(prev => {
+                const updated = [newPath, ...prev];
+                localStorage.setItem('demo_paths', JSON.stringify(updated));
+                return updated;
+            });
+            setCurrentPathId(newPath.id);
+            return;
+        }
+
         try {
             const res = await fetch(`${BACKEND_URL}/api/paths`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ topic: title || "New Learning Path", milestones: newMilestones, graphData: graphData ? JSON.stringify(graphData) : null })
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ topic: title || 'New Learning Path', milestones: newMilestones, graphData: graphData ? JSON.stringify(graphData) : null })
             });
-
             if (res.ok) {
                 const newPath = await res.json();
                 setLearningPaths(prev => [newPath, ...prev]);
@@ -95,8 +112,8 @@ export const LearningPathProvider = ({ children }) => {
 
         // Backend sync
         const token = localStorage.getItem('auth_token');
-        if (token) {
-            await fetch(`/api/paths/milestone/${id}`, {
+        if (token && BACKEND_URL) {
+            await fetch(`${BACKEND_URL}/api/paths/milestone/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -129,23 +146,24 @@ export const LearningPathProvider = ({ children }) => {
     };
 
     const deletePath = async (id) => {
+        const refreshedPaths = learningPaths.filter(p => String(p.id) !== String(id));
+        setLearningPaths(refreshedPaths);
+        if (String(currentPathId) === String(id)) {
+            setCurrentPathId(refreshedPaths.length > 0 ? refreshedPaths[0].id : null);
+        }
+        if (!BACKEND_URL) {
+            localStorage.setItem('demo_paths', JSON.stringify(refreshedPaths));
+            return;
+        }
         const token = localStorage.getItem('auth_token');
         if (!token) return;
-
         try {
-            const res = await fetch(`/api/paths/${id}`, {
+            await fetch(`${BACKEND_URL}/api/paths/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (res.ok) {
-                const refreshedPaths = learningPaths.filter(p => String(p.id) !== String(id));
-                setLearningPaths(refreshedPaths);
-                if (String(currentPathId) === String(id)) {
-                    setCurrentPathId(refreshedPaths.length > 0 ? refreshedPaths[0].id : null);
-                }
-            }
         } catch (err) {
-            console.error("Failed to delete path:", err);
+            console.error("Failed to delete path on server:", err);
         }
     };
 
@@ -191,8 +209,8 @@ export const LearningPathProvider = ({ children }) => {
             
             // remote update
             const token = localStorage.getItem('auth_token');
-            if (token) {
-                await fetch(`/api/paths/${currentPathId}`, {
+            if (token && BACKEND_URL) {
+                await fetch(`${BACKEND_URL}/api/paths/${currentPathId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',

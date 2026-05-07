@@ -1,8 +1,36 @@
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 let currentProvider = 'gemini';
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL || '';
+const BACKEND     = import.meta.env.VITE_BACKEND_URL || '';
+const GEMINI_KEY  = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+// When BACKEND is empty (GitHub Pages / demo mode) we call Gemini directly
+// from the browser using the SDK. No proxy needed.
+let _genAI = null;
+const geminiJsonModel = () => {
+    if (!_genAI) _genAI = new GoogleGenerativeAI(GEMINI_KEY);
+    return _genAI.getGenerativeModel({
+        model: 'gemini-1.5-flash',
+        generationConfig: { responseMimeType: 'application/json' },
+    });
+};
+const geminiStreamModel = () => {
+    if (!_genAI) _genAI = new GoogleGenerativeAI(GEMINI_KEY);
+    return _genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+};
+
+const cleanText = (t) => t.replace(/```json/g, '').replace(/```/g, '').trim();
+
+// Direct Gemini call (no backend). Returns parsed JSON object.
+const generateDirect = async (prompt) => {
+    const result = await geminiJsonModel().generateContent(prompt);
+    return JSON.parse(cleanText(result.response.text()));
+};
 
 const generateFromBackend = async (prompt) => {
+    if (!BACKEND) return generateDirect(prompt);
+
     const response = await fetch(`${BACKEND}/api/ai/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,42 +104,40 @@ export const llmService = {
     },
 
     async getDoubtAnswer(question) {
-        // Fallback for non-streaming components
+        if (!BACKEND) {
+            const result = await geminiJsonModel().generateContent(
+                `You are an expert CS tutor. Answer this question concisely in markdown.\nReturn as JSON: {"answer": "...markdown..."}\nQuestion: ${question}`
+            );
+            return JSON.parse(cleanText(result.response.text()));
+        }
         const token = localStorage.getItem('auth_token');
         const response = await fetch(`${BACKEND}/api/ai/ask-rag`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ provider: currentProvider, question })
         });
-        
-        if (!response.ok) {
-            let msg = await response.text();
-            throw new Error(`RAG Query Error: ${msg}`);
-        }
-        return response.json(); 
+        if (!response.ok) throw new Error(`RAG Query Error: ${await response.text()}`);
+        return response.json();
     },
 
     async *streamDoubtAnswer(question) {
+        if (!BACKEND) {
+            const model = geminiStreamModel();
+            const result = await model.generateContentStream(
+                `You are an expert CS tutor. Answer in clear markdown. Question: ${question}`
+            );
+            for await (const chunk of result.stream) yield chunk.text();
+            return;
+        }
         const token = localStorage.getItem('auth_token');
         const response = await fetch(`${BACKEND}/api/ai/stream-rag`, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` 
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ provider: currentProvider, question })
         });
-        
-        if (!response.ok) {
-            throw new Error('Stream request failed');
-        }
-
+        if (!response.ok) throw new Error('Stream request failed');
         const reader = response.body.getReader();
         const decoder = new TextDecoder('utf-8');
-
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -120,6 +146,11 @@ export const llmService = {
     },
 
     async *streamGenericContent(prompt) {
+        if (!BACKEND) {
+            const result = await geminiStreamModel().generateContentStream(prompt);
+            for await (const chunk of result.stream) yield chunk.text();
+            return;
+        }
         const response = await fetch(`${BACKEND}/api/ai/stream-generate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
