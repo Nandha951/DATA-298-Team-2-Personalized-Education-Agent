@@ -25,10 +25,15 @@ services:
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
         value: deepseek-chat
-      - key: FINETUNED_API_URL
+      # Paste Modal URLs here after running: modal deploy modal_server.py
+      # Example: https://<workspace>--piab-inference-inferenceserver-ask.modal.run
+      - key: FINETUNED_ASK_URL
+        sync: false
+      # Example: https://<workspace>--piab-inference-inferenceserver-ask-stream.modal.run
+      - key: FINETUNED_STREAM_URL
         sync: false
       - key: FINETUNED_TIMEOUT_MS
-        value: 30000
+        value: 120000
       - key: CHROMA_URL
         value: http://localhost:8000
       - key: LLAMA_CLOUD_API_KEY
