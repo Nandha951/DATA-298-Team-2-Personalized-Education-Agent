@@ -129,13 +129,15 @@ const isTimeoutOrDown = (err) =>
     err.message.includes('fetch failed') ||
     err.message.startsWith('Finetuned server HTTP');
 
-// Whether this is a quota/billing error we should fall back from
+// Whether this error means the provider is unusable — trigger fallback chain.
+// Includes 401 (revoked/invalid key) so a dead key auto-falls to the next provider.
 const isQuotaError = (err) => {
     const msg = (err?.message || '').toLowerCase();
     const status = err?.status || err?.statusCode || 0;
-    return status === 429 || status === 402
-        || msg.includes('429') || msg.includes('402')
+    return status === 429 || status === 402 || status === 401
+        || msg.includes('429') || msg.includes('402') || msg.includes('401')
         || msg.includes('quota') || msg.includes('rate limit')
+        || msg.includes('incorrect api key') || msg.includes('invalid api key')
         || msg.includes('insufficient balance') || msg.includes('insufficient_quota')
         || msg.includes('too many requests');
 };
@@ -254,8 +256,9 @@ router.post('/generate', asyncRoute(async (req, res) => {
     const { provider, prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
 
-    // Finetuned models output free-text, not structured JSON — use openai for
-    // any batch generate call that expects milestone/graph JSON structure.
+    // Finetuned models output free-text, not structured JSON.
+    // Use openai as the first attempt; fallback chain (openai→deepseek→gemini)
+    // handles dead keys automatically via isQuotaError.
     const effectiveProvider = isFinetuned(provider) ? 'openai' : (provider || 'openai');
 
     let lastError;
@@ -321,20 +324,36 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
 
     openChunkedStream(res);
 
+    const geminiStream = async () => {
+        const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const r = await m.generateContentStream(prompt);
+        for await (const chunk of r.stream) res.write(chunk.text());
+    };
+
     try {
         if (provider === 'openai') {
-            if (!openaiClient) throw new Error('OpenAI API Key not configured');
-            const stream = await openaiClient.chat.completions.create({
-                model: OPENAI_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
-            });
-            for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
+            try {
+                if (!openaiClient) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
+                const stream = await openaiClient.chat.completions.create({
+                    model: OPENAI_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
+                });
+                for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
+            } catch (err) {
+                if (isQuotaError(err)) { console.warn('[stream-generate] OpenAI dead, using Gemini'); await geminiStream(); }
+                else throw err;
+            }
 
         } else if (provider === 'deepseek') {
-            if (!deepseekClient) throw new Error('DeepSeek API Key not configured');
-            const stream = await deepseekClient.chat.completions.create({
-                model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
-            });
-            for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
+            try {
+                if (!deepseekClient) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
+                const stream = await deepseekClient.chat.completions.create({
+                    model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
+                });
+                for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
+            } catch (err) {
+                if (isQuotaError(err)) { console.warn('[stream-generate] DeepSeek dead, using Gemini'); await geminiStream(); }
+                else throw err;
+            }
 
         } else if (isFinetuned(provider)) {
             try {
@@ -345,9 +364,7 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
             }
 
         } else {
-            const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
-            const r = await m.generateContentStream(prompt);
-            for await (const chunk of r.stream) res.write(chunk.text());
+            await geminiStream();
         }
         res.end();
 
@@ -387,22 +404,40 @@ INSTRUCTION: Answer accurately in markdown. Prioritize the PAST KNOWLEDGE contex
 DO NOT wrap in JSON or code fences.
 `;
 
+        const streamWithGeminiFallback = async (primaryFn) => {
+            try {
+                await primaryFn();
+            } catch (err) {
+                if (isQuotaError(err)) {
+                    console.warn(`[stream-rag] ${provider} unavailable (${err.message?.slice(0,60)}), falling back to Gemini`);
+                    const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+                    const r = await m.generateContentStream(fullPrompt);
+                    for await (const chunk of r.stream) res.write(chunk.text());
+                } else {
+                    throw err;
+                }
+            }
+        };
+
         if (provider === 'openai') {
-            if (!openaiClient) throw new Error('OpenAI API Key not configured');
-            const stream = await openaiClient.chat.completions.create({
-                model: OPENAI_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
+            await streamWithGeminiFallback(async () => {
+                if (!openaiClient) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
+                const stream = await openaiClient.chat.completions.create({
+                    model: OPENAI_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
+                });
+                for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
             });
-            for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
 
         } else if (provider === 'deepseek') {
-            if (!deepseekClient) throw new Error('DeepSeek API Key not configured');
-            const stream = await deepseekClient.chat.completions.create({
-                model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
+            await streamWithGeminiFallback(async () => {
+                if (!deepseekClient) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
+                const stream = await deepseekClient.chat.completions.create({
+                    model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
+                });
+                for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
             });
-            for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
 
         } else if (isFinetuned(provider)) {
-            // Inject retrieved context directly into the question for the finetuned model
             const ragQuestion = context
                 ? `Context from my notes:\n${context}\n\nQuestion: ${question}`
                 : question;
@@ -414,6 +449,7 @@ DO NOT wrap in JSON or code fences.
             }
 
         } else {
+            // gemini
             const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
             const r = await m.generateContentStream(fullPrompt);
             for await (const chunk of r.stream) res.write(chunk.text());
