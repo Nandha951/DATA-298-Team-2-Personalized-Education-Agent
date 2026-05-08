@@ -21,6 +21,7 @@ const DEEPSEEK_API_KEY = process.env.VITE_DEEPSEEK_API_KEY;
 // Fallbacks point to the local FastAPI server (server.py on port 8001).
 const FINETUNED_ASK_URL    = process.env.FINETUNED_ASK_URL    || 'http://localhost:8001/ask';
 const FINETUNED_STREAM_URL = process.env.FINETUNED_STREAM_URL || 'http://localhost:8001/ask-stream';
+const FINETUNED_HEALTH_URL = process.env.FINETUNED_HEALTH_URL || null;
 
 // How long to wait before falling back to DeepSeek API.
 // DeepSeek R1 reasoning traces can run 60-90s — 120s gives it room.
@@ -232,13 +233,13 @@ const streamErrMsg = (err) => err.message?.includes('429')
 // ── GET /api/ai/warmup — pre-warms the Modal finetuned container ──────────────
 // Hit this ~90s before demo to eliminate cold-start wait for users.
 router.get('/warmup', asyncRoute(async (req, res) => {
+    if (!FINETUNED_HEALTH_URL) {
+        return res.json({ modal_status: 'unknown', message: 'FINETUNED_HEALTH_URL not configured.' });
+    }
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 10000);
     try {
-        const resp = await fetch(
-            FINETUNED_ASK_URL.replace(/\/[^/]+$/, '') + '/health',
-            { signal: controller.signal }
-        );
+        const resp = await fetch(FINETUNED_HEALTH_URL, { signal: controller.signal });
         clearTimeout(timer);
         const data = await resp.json().catch(() => ({}));
         return res.json({ modal_status: resp.ok ? 'warm' : 'cold', ...data });

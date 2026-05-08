@@ -142,8 +142,16 @@ class InferenceServer:
         )
         model = PeftModel.from_pretrained(model, cfg["adapter"], config=lora_config)
         model.eval()
-        self.loaded[name] = (tokenizer, model)
-        print(f"[INFO] {name} ready.")
+
+        # Build stop token list: EOS + any model-specific stop tokens
+        stop_ids = [tokenizer.eos_token_id]
+        for tok in ["<|im_end|>", "<|endoftext|>", "[/INST]"]:
+            tid = tokenizer.convert_tokens_to_ids(tok)
+            if tid is not None and tid != tokenizer.unk_token_id and tid not in stop_ids:
+                stop_ids.append(tid)
+
+        self.loaded[name] = (tokenizer, model, stop_ids)
+        print(f"[INFO] {name} ready. stop_ids={stop_ids}")
 
     # ── Batch endpoint ─────────────────────────────────────────────────────────
     @modal.fastapi_endpoint(method="POST")
@@ -163,7 +171,7 @@ class InferenceServer:
             return {"error": f"Unknown model '{model_name}'.", "valid": list(MODEL_CONFIG)}, 400
 
         self._load_one(model_name)
-        tokenizer, model = self.loaded[model_name]
+        tokenizer, model, stop_ids = self.loaded[model_name]
         prompt = MODEL_CONFIG[model_name]["prompt"].format(q=question)
         inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 
@@ -176,11 +184,16 @@ class InferenceServer:
                 do_sample=True,
                 repetition_penalty=1.1,
                 pad_token_id=tokenizer.eos_token_id,
+                eos_token_id=stop_ids,
             )
         latency_ms = (time.time() - t0) * 1000
 
         new_tokens = output_ids[0][inputs["input_ids"].shape[1]:]
         answer = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
+        # Strip any leaked stop markers and hallucinated follow-up exchanges
+        for marker in ["<|im_end|>", "<|im_start|>", "[INST]", "[/INST]"]:
+            if marker in answer:
+                answer = answer.split(marker)[0].strip()
 
         return {"answer": answer, "model_used": model_name, "latency_ms": round(latency_ms, 1)}
 
@@ -210,7 +223,7 @@ class InferenceServer:
             return StreamingResponse(_err(), media_type="text/event-stream")
 
         self._load_one(model_name)
-        tokenizer, model = self.loaded[model_name]
+        tokenizer, model, stop_ids = self.loaded[model_name]
         prompt = MODEL_CONFIG[model_name]["prompt"].format(q=question)
         inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 
@@ -224,17 +237,32 @@ class InferenceServer:
             do_sample=True,
             repetition_penalty=1.1,
             pad_token_id=tokenizer.eos_token_id,
+            eos_token_id=stop_ids,
             streamer=streamer,
         )
 
         thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
         thread.start()
 
+        _STOP_MARKERS = ["<|im_end|>", "<|im_start|>", "[INST]", "[/INST]"]
+
         def sse_generator():
             try:
                 for token_text in streamer:
-                    if token_text:
-                        yield f"data: {json.dumps({'token': token_text})}\n\n"
+                    if not token_text:
+                        continue
+                    # Stop streaming if we hit a leaked stop marker
+                    hit = False
+                    for marker in _STOP_MARKERS:
+                        if marker in token_text:
+                            clean = token_text.split(marker)[0]
+                            if clean:
+                                yield f"data: {json.dumps({'token': clean})}\n\n"
+                            hit = True
+                            break
+                    if hit:
+                        break
+                    yield f"data: {json.dumps({'token': token_text})}\n\n"
             except Exception as e:
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
             finally:

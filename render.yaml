@@ -19,7 +19,7 @@ services:
       - key: VITE_GEMINI_API_KEY
         value: AIzaSyBaP7H3-4x7FL8RIgh8pROA9Cmo5UaVG2E
       - key: VITE_OPENAI_API_KEY
-        sync: false
+        value: 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
       - key: VITE_DEEPSEEK_API_KEY
         value: sk-a3b7823159bc4daaa908712d8f5843ee
       - key: VITE_OPENAI_MODEL
@@ -30,6 +30,8 @@ services:
         value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-5f6054.modal.run
       - key: FINETUNED_STREAM_URL
         value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-7dc34d.modal.run
+      - key: FINETUNED_HEALTH_URL
+        value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-df1afc.modal.run
       - key: FINETUNED_TIMEOUT_MS
         value: 120000
       - key: LLAMA_CLOUD_API_KEY
