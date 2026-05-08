@@ -87,11 +87,11 @@ EAGER_MODEL = "deepseek"
     startup_timeout=1200,
     # Memory snapshot: after first cold start loads models, Modal snapshots
     # container memory — subsequent cold starts restore from snapshot (~10s)
-    enable_memory_snapshot=True,
+    # enable_memory_snapshot=True,  # re-enable after volume is pre-populated
 )
 class InferenceServer:
 
-    @modal.enter(snap=True)
+    @modal.enter()
     def load_models(self):
         """
         Runs once per container lifetime (cold start).
