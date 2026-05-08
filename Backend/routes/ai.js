@@ -130,12 +130,8 @@ const isTimeoutOrDown = (err) =>
 
 // Fall back to DeepSeek API stream when finetuned server is slow/down
 const fallbackToDeepSeekStream = async (prompt, res) => {
-    if (!deepseekClient) throw new Error('Finetuned unavailable and DEEPSEEK_API_KEY not set');
-    console.warn('[Finetuned] Falling back to DeepSeek API stream');
-    const stream = await deepseekClient.chat.completions.create({
-        model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
-    });
-    for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
+    // No fallback to paid API — inform the user the model is cold-starting
+    res.write('\n\n*The finetuned model is warming up (cold start ~60s). Please try again in a moment.*');
 };
 
 // ── Universal batch generate (returns parsed JSON object) ─────────────────────
@@ -171,17 +167,7 @@ const generateContent = async (provider, prompt) => {
             return { answer };
         } catch (err) {
             if (isTimeoutOrDown(err)) {
-                console.warn(`[Finetuned batch] ${err.message} — falling back to DeepSeek API`);
-                if (!deepseekClient) throw new Error('Finetuned unavailable and DEEPSEEK_API_KEY not set');
-                const c = await deepseekClient.chat.completions.create({
-                    messages: [
-                        { role: 'system', content: 'You are a helpful educational assistant. Output strictly valid JSON.' },
-                        { role: 'user',   content: prompt },
-                    ],
-                    model: DEEPSEEK_MODEL,
-                    response_format: { type: 'json_object' },
-                });
-                return JSON.parse(cleanResponse(c.choices[0].message.content));
+                throw new Error('Finetuned model is warming up (cold start ~60s). Please try again in a moment.');
             }
             throw err;
         }
