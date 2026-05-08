@@ -295,13 +295,12 @@ _config_image = modal.Image.debian_slim(python_version="3.11").pip_install(["fas
 
 @app.function(
     image=_config_image,
+    secrets=[modal.Secret.from_name("piab-api-keys")],
     scaledown_window=300,
 )
 @modal.fastapi_endpoint(method="GET")
 def config():
     import os
-    # Keys populated via: modal secret create piab-api-keys GEMINI_API_KEY=... OPENAI_API_KEY=...
-    # Then attach to this function by adding: secrets=[modal.Secret.from_name("piab-api-keys")]
     return {
         "GEMINI_API_KEY":   os.environ.get("GEMINI_API_KEY", ""),
         "OPENAI_API_KEY":   os.environ.get("OPENAI_API_KEY", ""),
