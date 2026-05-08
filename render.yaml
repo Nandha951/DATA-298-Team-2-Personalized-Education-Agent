@@ -17,11 +17,11 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: VITE_GEMINI_API_KEY
-        value: AIzaSyBaP7H3-4x7FL8RIgh8pROA9Cmo5UaVG2E
+        sync: false
       - key: VITE_OPENAI_API_KEY
-        value: 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
+        sync: false
       - key: VITE_DEEPSEEK_API_KEY
-        value: sk-a3b7823159bc4daaa908712d8f5843ee
+        sync: false
       - key: VITE_OPENAI_MODEL
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
@@ -47,7 +47,7 @@ services:
       - key: VITE_BACKEND_URL
         value: https://piab-backend.onrender.com
       - key: VITE_GEMINI_API_KEY
-        value: AIzaSyBaP7H3-4x7FL8RIgh8pROA9Cmo5UaVG2E
+        sync: false
     routes:
       - type: rewrite
         source: /*
