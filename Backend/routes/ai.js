@@ -242,6 +242,14 @@ const streamErrMsg = (err) => err.message?.includes('429')
     ? 'AI quota exceeded. Please try again in a few seconds.'
     : 'Connection error while streaming AI response.';
 
+// ── GET /api/ai/refresh — force-fetches latest API keys from Modal config ─────
+router.get('/refresh', asyncRoute(async (req, res) => {
+    const before = { gemini: !!_keys.gemini, openai: !!_keys.openai };
+    await refreshKeys();
+    const after  = { gemini: !!_keys.gemini, openai: !!_keys.openai };
+    res.json({ status: 'ok', before, after, config_url: FINETUNED_CONFIG_URL || 'not set' });
+}));
+
 // ── GET /api/ai/warmup — pre-warms the Modal finetuned container ──────────────
 // Hit this ~90s before demo to eliminate cold-start wait for users.
 router.get('/warmup', asyncRoute(async (req, res) => {
