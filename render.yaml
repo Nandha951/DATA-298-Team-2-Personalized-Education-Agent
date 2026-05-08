@@ -17,11 +17,11 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: VITE_GEMINI_API_KEY
-        value: AIzaSyColkDiNC775P3-hL-pnS86z28Ixggn_qA
+        value: AIzaSyDlhwt5OeZV3Ly1XFQ104L6djrs7kWwwQg
       - key: VITE_OPENAI_API_KEY
         sync: false
       - key: VITE_DEEPSEEK_API_KEY
-        sync: false
+        value: sk-a3b7823159bc4daaa908712d8f5843ee
       - key: VITE_OPENAI_MODEL
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
@@ -45,7 +45,7 @@ services:
     staticPublishPath: Frontend/dist
     envVars:
       - key: VITE_GEMINI_API_KEY
-        value: AIzaSyColkDiNC775P3-hL-pnS86z28Ixggn_qA
+        value: AIzaSyDlhwt5OeZV3Ly1XFQ104L6djrs7kWwwQg
       # Set this to the piab-backend URL after the backend deploys:
       # e.g. https://piab-backend.onrender.com
       - key: VITE_BACKEND_URL
