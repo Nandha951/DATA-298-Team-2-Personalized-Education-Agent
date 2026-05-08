@@ -17,7 +17,7 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: VITE_GEMINI_API_KEY
-        value: AIzaSyDlhwt5OeZV3Ly1XFQ104L6djrs7kWwwQg
+        value: AIzaSyBaP7H3-4x7FL8RIgh8pROA9Cmo5UaVG2E
       - key: VITE_OPENAI_API_KEY
         sync: false
       - key: VITE_DEEPSEEK_API_KEY
@@ -26,10 +26,8 @@ services:
         value: gpt-4o-mini
       - key: VITE_DEEPSEEK_MODEL
         value: deepseek-chat
-      # Existing Modal deployment (batch endpoint — works immediately)
       - key: FINETUNED_ASK_URL
         value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-5f6054.modal.run
-      # Stream endpoint — true SSE token-by-token streaming
       - key: FINETUNED_STREAM_URL
         value: https://basanth-periyapatnaroopakumar--piab-inference-inferences-7dc34d.modal.run
       - key: FINETUNED_TIMEOUT_MS
@@ -44,12 +42,10 @@ services:
     buildCommand: cd Frontend && npm ci && npm run build
     staticPublishPath: Frontend/dist
     envVars:
-      - key: VITE_GEMINI_API_KEY
-        value: AIzaSyDlhwt5OeZV3Ly1XFQ104L6djrs7kWwwQg
-      # Set this to the piab-backend URL after the backend deploys:
-      # e.g. https://piab-backend.onrender.com
       - key: VITE_BACKEND_URL
-        sync: false
+        value: https://piab-backend.onrender.com
+      - key: VITE_GEMINI_API_KEY
+        value: AIzaSyBaP7H3-4x7FL8RIgh8pROA9Cmo5UaVG2E
     routes:
       - type: rewrite
         source: /*

@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-let currentProvider = 'gemini';
+let currentProvider = 'openai';
 
 const BACKEND     = import.meta.env.VITE_BACKEND_URL || '';
 const GEMINI_KEY  = import.meta.env.VITE_GEMINI_API_KEY || '';

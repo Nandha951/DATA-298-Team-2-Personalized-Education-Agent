@@ -123,19 +123,28 @@ const pipeFinetunedStream = async (modelName, question, res) => {
 };
 
 const isTimeoutOrDown = (err) =>
-    err.message.startsWith('TIMEOUT') || 
+    err.message.startsWith('TIMEOUT') ||
     err.message.includes('ECONNREFUSED') ||
     err.message.includes('fetch failed') ||
     err.message.startsWith('Finetuned server HTTP');
 
-// Fall back to DeepSeek API stream when finetuned server is slow/down
+// Whether this is a quota/billing error we should fall back from
+const isQuotaError = (err) => {
+    const msg = (err?.message || '').toLowerCase();
+    const status = err?.status || err?.statusCode || 0;
+    return status === 429 || status === 402
+        || msg.includes('429') || msg.includes('402')
+        || msg.includes('quota') || msg.includes('rate limit')
+        || msg.includes('insufficient balance') || msg.includes('insufficient_quota')
+        || msg.includes('too many requests');
+};
+
 const fallbackToDeepSeekStream = async (prompt, res) => {
-    // No fallback to paid API — inform the user the model is cold-starting
     res.write('\n\n*The finetuned model is warming up (cold start ~60s). Please try again in a moment.*');
 };
 
-// ── Universal batch generate (returns parsed JSON object) ─────────────────────
-const generateContent = async (provider, prompt) => {
+// ── Call one provider for batch JSON (throws on error) ────────────────────────
+const callProvider = async (provider, prompt) => {
     if (provider === 'openai') {
         if (!openaiClient) throw new Error('OpenAI API Key not configured');
         const c = await openaiClient.chat.completions.create({
@@ -173,10 +182,34 @@ const generateContent = async (provider, prompt) => {
         }
 
     } else {
-        // Default: Gemini
+        // Gemini
         const result = await geminiModel.generateContent(prompt);
         return JSON.parse(cleanResponse((await result.response).text()));
     }
+};
+
+// ── Universal batch generate — tries requested provider, auto-falls back on quota ──
+const FALLBACK_CHAIN = ['openai', 'deepseek', 'gemini'];
+
+const generateContent = async (provider, prompt) => {
+    try {
+        return await callProvider(provider, prompt);
+    } catch (err) {
+        if (!isQuotaError(err)) throw err;
+        console.warn(`[AI] ${provider} quota hit — trying fallbacks`);
+    }
+    for (const fb of FALLBACK_CHAIN) {
+        if (fb === provider) continue;
+        try {
+            const result = await callProvider(fb, prompt);
+            console.log(`[AI] Fell back to ${fb} successfully`);
+            return result;
+        } catch (fbErr) {
+            if (!isQuotaError(fbErr)) throw fbErr;
+            console.warn(`[AI] ${fb} also quota-limited, continuing`);
+        }
+    }
+    throw new Error('All AI providers are quota-limited. Please try again later.');
 };
 
 // ── Shared utils ───────────────────────────────────────────────────────────────
@@ -196,6 +229,25 @@ const streamErrMsg = (err) => err.message?.includes('429')
     ? 'AI quota exceeded. Please try again in a few seconds.'
     : 'Connection error while streaming AI response.';
 
+// ── GET /api/ai/warmup — pre-warms the Modal finetuned container ──────────────
+// Hit this ~90s before demo to eliminate cold-start wait for users.
+router.get('/warmup', asyncRoute(async (req, res) => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10000);
+    try {
+        const resp = await fetch(
+            FINETUNED_ASK_URL.replace(/\/[^/]+$/, '') + '/health',
+            { signal: controller.signal }
+        );
+        clearTimeout(timer);
+        const data = await resp.json().catch(() => ({}));
+        return res.json({ modal_status: resp.ok ? 'warm' : 'cold', ...data });
+    } catch (_) {
+        clearTimeout(timer);
+        return res.json({ modal_status: 'cold_starting', message: 'Container is starting. Try again in 60-90s.' });
+    }
+}));
+
 // ── POST /api/ai/generate ──────────────────────────────────────────────────────
 router.post('/generate', asyncRoute(async (req, res) => {
     const { provider, prompt } = req.body;
@@ -204,7 +256,7 @@ router.post('/generate', asyncRoute(async (req, res) => {
     let lastError;
     for (let i = 0; i < 3; i++) {
         try {
-            return res.json(await generateContent(provider || 'gemini', prompt));
+            return res.json(await generateContent(provider || 'openai', prompt));
         } catch (err) {
             lastError = err;
             if (err.message?.includes('503') || err.status === 429) {
@@ -240,7 +292,7 @@ Return a JSON object with key "answer" containing your markdown response.
     let lastError;
     for (let i = 0; i < 3; i++) {
         try {
-            return res.json(await generateContent(provider || 'gemini', prompt));
+            return res.json(await generateContent(provider || 'openai', prompt));
         } catch (err) {
             lastError = err;
             if (err.message?.includes('503') || err.status === 429) {
