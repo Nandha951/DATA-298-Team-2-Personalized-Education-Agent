@@ -8,43 +8,40 @@ import { BACKEND_URL } from '../../services/config';
 function DoubtChat({ milestoneId }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
-    const [file, setFile] = useState(null);
     const [loading, setLoading] = useState(false);
-    const autoTTS = true; // Always read aloud in Voice Mode
     const abortControllerRef = useRef(null);
+    const messagesEndRef = useRef(null);
 
     const { isListening, isSpeaking, startListening, stopListening, speak } = useVoiceAssistant((transcript, isFinal) => {
         if (isFinal) {
-            setInput(''); // Clear input box since we submitted
-            handleAsk(transcript); // Instantly submit!
+            setInput('');
+            handleAsk(transcript);
         } else {
-            setInput(transcript); // Replace, don't append, because interim transcripts contain the full phrase
-            
-            // If the user starts talking, abort any currently generating AI stream!
-            if (abortControllerRef.current) {
-                abortControllerRef.current.abort();
-            }
+            setInput(transcript);
+            if (abortControllerRef.current) abortControllerRef.current.abort();
         }
     });
 
     const handleStopAll = () => {
         stopListening();
         window.speechSynthesis.cancel();
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
+        if (abortControllerRef.current) abortControllerRef.current.abort();
         setLoading(false);
         setInput('');
     };
 
-    // Load historical chats on mount
+    useEffect(() => {
+        if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [messages]);
+
     useEffect(() => {
         const fetchHistory = async () => {
             const token = localStorage.getItem('auth_token');
-            if (!token || !milestoneId) return;
-
+            if (!token || !milestoneId || !BACKEND_URL) return;
             try {
-                const res = await fetch(`/api/chats/${milestoneId}`, {
+                const res = await fetch(`${BACKEND_URL}/api/chats/${milestoneId}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
@@ -60,177 +57,187 @@ function DoubtChat({ milestoneId }) {
 
     const saveMessage = async (role, content) => {
         const token = localStorage.getItem('auth_token');
-        if (!token) return;
-
+        if (!token || !BACKEND_URL) return;
         await fetch(`${BACKEND_URL}/api/chats`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify({ role, content, contextRef: milestoneId })
         }).catch(err => console.error("Failed to save chat message:", err));
     };
 
     const handleAsk = async (forcedInput) => {
         const currentInput = typeof forcedInput === 'string' ? forcedInput : input;
-        if (!currentInput.trim() && !file) return;
+        if (!currentInput.trim()) return;
 
-        // Stop the previous generation if user interrupts
-        if (abortControllerRef.current) {
-            abortControllerRef.current.abort();
-        }
+        if (abortControllerRef.current) abortControllerRef.current.abort();
         abortControllerRef.current = new AbortController();
         const currentAbort = abortControllerRef.current;
 
-        const userMessage = { role: 'user', content: currentInput };
-        
-        setMessages(prev => [...prev, userMessage]);
+        setMessages(prev => [...prev, { role: 'user', content: currentInput }]);
         setInput('');
-        setFile(null);
         setLoading(true);
-
-        // Optimistically save user message
         saveMessage('user', currentInput);
 
+        setMessages(prev => [...prev, { role: 'ai', content: '' }]);
+
+        let buffer = '';
+        let displayContent = '';
+        let isStreamDone = false;
+        let streamError = null;
+
+        const provider = llmService.getCurrentProvider();
+        const isFinetuned = provider === 'finetuned-deepseek' || provider === 'finetuned-mistral';
+
+        if (isFinetuned) {
+            setMessages(prev => {
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: 'ai', content: '*Connecting to finetuned model… this may take 25-45s*' };
+                return msgs;
+            });
+        }
+
         try {
-            // Add empty AI message placeholder for streaming
-            setMessages(prev => [...prev, { role: 'ai', content: '' }]);
-
-            let buffer = "";
-            let displayContent = "";
-            let spokenLength = 0; // Track what has been sent to TTS
-            let isStreamDone = false;
-
             const stream = llmService.streamDoubtAnswer(currentInput);
-            
+
             (async () => {
                 try {
                     for await (const chunk of stream) { buffer += chunk; }
-                } catch(e) { console.error(e); } 
-                finally { isStreamDone = true; }
+                } catch (e) {
+                    streamError = e;
+                } finally {
+                    isStreamDone = true;
+                }
             })();
-            
+
             while (!isStreamDone || displayContent.length < buffer.length) {
-                if (currentAbort.signal.aborted) {
-                    console.log("Stream interrupted by user.");
-                    break;
-                }
-                
+                if (currentAbort.signal.aborted) break;
+
+                if (streamError) throw streamError;
+
                 if (displayContent.length < buffer.length) {
-                    const stepText = buffer.slice(displayContent.length, displayContent.length + 4);
-                    displayContent += stepText;
+                    const step = buffer.slice(displayContent.length, displayContent.length + 4);
+                    displayContent += step;
                     setMessages(prev => {
-                        const newMessages = [...prev];
-                        const lastIndex = newMessages.length - 1;
-                        newMessages[lastIndex] = { ...newMessages[lastIndex], content: displayContent };
-                        return newMessages;
+                        const msgs = [...prev];
+                        msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: displayContent };
+                        return msgs;
                     });
-                }
-                
-                // Stream audio chunk by chunk (sentence by sentence)
-                if (autoTTS && !currentAbort.signal.aborted) {
-                    const currentUnspoken = displayContent.slice(spokenLength);
-                    // Match a full sentence ending in . ? or !
-                    const match = currentUnspoken.match(/^.*?[.!?]+(?=\s|$)/);
-                    if (match) {
-                        const sentence = match[0];
-                        speak(sentence, null, false); // false = don't clear queue, just append
-                        spokenLength += sentence.length;
-                    }
+
+                    const unspoken = displayContent.slice(displayContent.length - step.length);
+                    const match = unspoken.match(/^.*?[.!?]+(?=\s|$)/);
+                    if (match) speak(match[0], null, false);
                 }
 
                 await new Promise(r => setTimeout(r, 15));
             }
 
-            // Speak any remaining text at the end
-            if (!currentAbort.signal.aborted && autoTTS && spokenLength < displayContent.length) {
-                const remainder = displayContent.slice(spokenLength);
-                if (remainder.trim()) {
-                    speak(remainder, null, false);
-                }
-            }
+            if (!currentAbort.signal.aborted) saveMessage('ai', displayContent);
 
-            if (!currentAbort.signal.aborted) {
-                saveMessage('ai', displayContent);
-            }
         } catch (err) {
-            console.error('Error asking question:', err);
-            const errorMessage = { role: 'ai', content: err.message || 'Connection error. Please try again later.' };
+            console.error('DoubtChat error:', err);
+            const msg = err.message?.includes('401') || err.message?.includes('unauthorized')
+                ? 'Session expired. Please log out and log in again.'
+                : err.message?.includes('finetuned') || err.message?.includes('TIMEOUT')
+                ? 'Finetuned model timed out. It may still be cold-starting — try again in 30s.'
+                : err.message || 'Connection error. Please try again.';
             setMessages(prev => {
-                const newMessages = [...prev];
-                newMessages[newMessages.length - 1] = errorMessage; // Replace empty stream placeholder
-                return newMessages;
+                const msgs = [...prev];
+                msgs[msgs.length - 1] = { role: 'ai', content: `*Error: ${msg}*` };
+                return msgs;
             });
         } finally {
             setLoading(false);
         }
     };
 
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleAsk();
+        }
+    };
+
+    const provider = llmService.getCurrentProvider();
+    const isFinetuned = provider === 'finetuned-deepseek' || provider === 'finetuned-mistral';
+
     return (
-        <div className="doubt-chat" style={{ display: 'flex', flexDirection: 'column', height: '100%', margin: 0, border: 'none', boxShadow: 'none', background: 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, padding: '20px' }}>
-                
-                <h3 style={{ margin: '0 0 20px 0', color: 'var(--text-main)', fontSize: '1.4rem' }}>
-                    Hands-Free AI Tutor
-                </h3>
-
-                <button 
-                    onClick={(isListening || loading || isSpeaking) ? handleStopAll : startListening}
-                    style={{ 
-                        padding: '12px 28px',
-                        borderRadius: '30px',
-                        fontSize: '1.1rem',
-                        fontWeight: 'bold',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '12px',
-                        background: (isListening || loading || isSpeaking) ? 'rgba(239, 68, 68, 0.1)' : 'var(--primary)',
-                        color: (isListening || loading || isSpeaking) ? '#ef4444' : 'white',
-                        border: (isListening || loading || isSpeaking) ? '2px solid #ef4444' : '2px solid var(--primary)',
-                        cursor: 'pointer',
-                        transition: 'all 0.3s ease',
-                        boxShadow: (isListening || loading || isSpeaking) ? '0 0 20px rgba(239, 68, 68, 0.2)' : '0 4px 10px rgba(0,0,0,0.1)',
-                        zIndex: 2
-                    }}
-                >
-                    <span style={{ fontSize: '1.4rem' }}>{(isListening || loading || isSpeaking) ? '⏹️' : '🎙️'}</span>
-                    {(isListening || loading || isSpeaking) ? 'Deactivate Voice Mode' : 'Activate Voice Mode'}
-                </button>
-
-                <div style={{ marginTop: '30px', minHeight: '100px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    {(isListening || loading || isSpeaking) ? (
-                        <>
-                            <div style={{ 
-                                fontSize: '2.5rem', 
-                                marginBottom: '10px',
-                                animation: (isListening || loading) ? 'pulse 1.5s infinite' : 'none',
-                                filter: isListening ? 'drop-shadow(0 0 10px rgba(239,68,68,0.5))' : 'none'
-                            }}>
-                                {isListening ? '👂' : (isSpeaking ? '🗣️' : '🧠')}
-                            </div>
-                            <h4 style={{ margin: '0 0 8px 0', color: isListening ? '#ef4444' : 'var(--primary)' }}>
-                                {isListening ? 'Listening...' : (isSpeaking ? 'Speaking...' : 'Processing...')}
-                            </h4>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '240px', margin: '0', fontStyle: 'italic', lineHeight: '1.4' }}>
-                                {input ? `"${input}"` : (isListening ? "Speak naturally to ask a question..." : "")}
-                            </p>
-                        </>
-                    ) : (
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '240px', margin: '0', lineHeight: '1.5' }}>
-                            Click to activate hands-free continuous conversation.
-                        </p>
-                    )}
-                </div>
-
+        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '8px' }}>
+            {/* Provider badge */}
+            <div style={{ fontSize: '0.75rem', color: isFinetuned ? '#7c3aed' : 'var(--text-muted)', fontWeight: '600', textAlign: 'center' }}>
+                {isFinetuned ? `🤖 ${provider === 'finetuned-deepseek' ? 'DeepSeek R1 7B' : 'Mistral 7B'} (finetuned · ~30s)` : `⚡ ${provider}`}
             </div>
-            
-            <style>{`
-                @keyframes pulse {
-                    0% { transform: scale(0.95); opacity: 1; }
-                    100% { transform: scale(1.3); opacity: 0; }
-                }
-            `}</style>
+
+            {/* Message history */}
+            <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px', minHeight: '80px', maxHeight: '240px' }}>
+                {messages.length === 0 && (
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', margin: 'auto 0', fontStyle: 'italic' }}>
+                        Ask anything about this milestone…
+                    </p>
+                )}
+                {messages.map((msg, i) => (
+                    <div key={i} style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: msg.role === 'user' ? 'var(--primary-light)' : 'var(--bg-color)',
+                        border: msg.role === 'ai' ? '1px solid var(--border-color)' : 'none',
+                        fontSize: '0.88rem',
+                        lineHeight: '1.5',
+                        color: 'var(--text-main)',
+                        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                        maxWidth: '95%'
+                    }}>
+                        {msg.role === 'ai'
+                            ? <ReactMarkdown>{msg.content || (loading && i === messages.length - 1 ? '▋' : '')}</ReactMarkdown>
+                            : msg.content
+                        }
+                    </div>
+                ))}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* Text input row */}
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end' }}>
+                <textarea
+                    value={input}
+                    onChange={e => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Type a question…"
+                    disabled={loading}
+                    rows={2}
+                    style={{
+                        flex: 1, padding: '8px 10px', borderRadius: '8px',
+                        border: '1px solid var(--border-color)', resize: 'none',
+                        fontFamily: 'Inter', fontSize: '0.88rem',
+                        background: 'var(--bg-color)', color: 'var(--text-main)',
+                        opacity: loading ? 0.6 : 1
+                    }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <button
+                        onClick={loading ? handleStopAll : handleAsk}
+                        style={{
+                            padding: '8px 12px', borderRadius: '8px', border: 'none',
+                            background: loading ? '#ef4444' : 'var(--primary)',
+                            color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600'
+                        }}
+                    >
+                        {loading ? '■' : '↑'}
+                    </button>
+                    <button
+                        onClick={(isListening || isSpeaking) ? handleStopAll : startListening}
+                        title="Voice input"
+                        style={{
+                            padding: '8px 12px', borderRadius: '8px', border: 'none',
+                            background: (isListening || isSpeaking) ? '#ef4444' : 'var(--surface-color)',
+                            color: (isListening || isSpeaking) ? 'white' : 'var(--text-muted)',
+                            border: '1px solid var(--border-color)',
+                            cursor: 'pointer', fontSize: '1rem'
+                        }}
+                    >
+                        {isListening ? '🛑' : '🎙️'}
+                    </button>
+                </div>
+            </div>
         </div>
     );
 }

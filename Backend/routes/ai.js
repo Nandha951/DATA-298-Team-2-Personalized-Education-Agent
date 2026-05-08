@@ -254,10 +254,14 @@ router.post('/generate', asyncRoute(async (req, res) => {
     const { provider, prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: 'Missing prompt' });
 
+    // Finetuned models output free-text, not structured JSON — use openai for
+    // any batch generate call that expects milestone/graph JSON structure.
+    const effectiveProvider = isFinetuned(provider) ? 'openai' : (provider || 'openai');
+
     let lastError;
     for (let i = 0; i < 3; i++) {
         try {
-            return res.json(await generateContent(provider || 'openai', prompt));
+            return res.json(await generateContent(effectiveProvider, prompt));
         } catch (err) {
             lastError = err;
             if (err.message?.includes('503') || err.status === 429) {
@@ -276,6 +280,9 @@ router.post('/ask-rag', requireAuth, asyncRoute(async (req, res) => {
     const { provider, question } = req.body;
     if (!question) return res.status(400).json({ error: 'Missing question' });
 
+    // ask-rag returns JSON — finetuned models can't produce it, fall back to openai
+    const effectiveProvider = isFinetuned(provider) ? 'openai' : (provider || 'openai');
+
     const context = await vectorDb.queryMemory(req.user.userId, question, 5);
 
     const prompt = `
@@ -293,7 +300,7 @@ Return a JSON object with key "answer" containing your markdown response.
     let lastError;
     for (let i = 0; i < 3; i++) {
         try {
-            return res.json(await generateContent(provider || 'openai', prompt));
+            return res.json(await generateContent(effectiveProvider, prompt));
         } catch (err) {
             lastError = err;
             if (err.message?.includes('503') || err.status === 429) {

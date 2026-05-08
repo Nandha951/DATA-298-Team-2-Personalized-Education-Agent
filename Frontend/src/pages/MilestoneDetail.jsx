@@ -95,6 +95,7 @@ function MilestoneDetail() {
             let buffer = "";
             let displayContent = "";
             let isStreamDone = false;
+            let streamError = null;
 
             const stream = llmService.streamGenericContent(prompt);
 
@@ -102,14 +103,14 @@ function MilestoneDetail() {
             (async () => {
                 try {
                     for await (const chunk of stream) { buffer += chunk; }
-                } catch (e) { console.error("Stream disrupted:", e); }
+                } catch (e) { streamError = e; console.error("Stream disrupted:", e); }
                 finally { isStreamDone = true; }
             })();
 
             // UI Typewriter Loop (Smooth framerate)
             while (!isStreamDone || displayContent.length < buffer.length) {
+                if (streamError) throw streamError;
                 if (displayContent.length < buffer.length) {
-                    // Add characters progressively
                     const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
                     setMilestone(prev => ({ ...prev, detailedContent: displayContent }));
@@ -175,17 +176,19 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
             let buffer = "";
             let displayContent = "";
             let isStreamDone = false;
+            let streamError = null;
 
             const stream = llmService.streamGenericContent(prompt);
 
             (async () => {
                 try {
                     for await (const chunk of stream) { buffer += chunk; }
-                } catch (e) { console.error(e); }
+                } catch (e) { streamError = e; console.error(e); }
                 finally { isStreamDone = true; }
             })();
 
             while (!isStreamDone || displayContent.length < buffer.length) {
+                if (streamError) throw streamError;
                 if (displayContent.length < buffer.length) {
                     const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
@@ -246,20 +249,21 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
             let buffer = "";
             let displayContent = "";
             let isStreamDone = false;
+            let streamError = null;
 
             const syntheticPrompt = `Regarding this exact snippet: "${selection.text}"\n\nStudent asks: ${questionText}`;
-            console.log(`[AskModal] Sending synthetic prompt to stream API:\n${syntheticPrompt}`);
 
             const stream = llmService.streamDoubtAnswer(syntheticPrompt);
 
             (async () => {
                 try {
                     for await (const chunk of stream) { buffer += chunk; }
-                } catch (e) { console.error(e); }
+                } catch (e) { streamError = e; console.error(e); }
                 finally { isStreamDone = true; }
             })();
 
             while (!isStreamDone || displayContent.length < buffer.length) {
+                if (streamError) throw streamError;
                 if (displayContent.length < buffer.length) {
                     const stepText = buffer.slice(displayContent.length, displayContent.length + 15);
                     displayContent += stepText;
@@ -273,16 +277,15 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                 await new Promise(r => setTimeout(r, 40));
             }
 
-            console.log(`[AskModal] Stream generation completed successfully. Total length: ${displayContent.length} chars.`);
-
             setActionState(prev => ({ ...prev, loading: false }));
-
-            // Save messages to backend once complete
             saveChatToBackend('user', questionText, threadIdToUse);
             saveChatToBackend('ai', displayContent, threadIdToUse);
 
         } catch (err) {
-            setActionState(prev => ({ ...prev, loading: false, error: 'Failed to get answer.' }));
+            const msg = err.message?.includes('401') ? 'Session expired — please log in again.'
+                : err.message?.includes('TIMEOUT') ? 'Finetuned model timed out. Try again in 30s.'
+                : err.message || 'Failed to get answer.';
+            setActionState(prev => ({ ...prev, loading: false, error: msg }));
         }
     };
 
@@ -292,7 +295,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
         try {
             const token = localStorage.getItem('auth_token');
             if (token) {
-                const res = await fetch(`/api/chats/${id}/threads`, {
+                const res = await fetch(`${BACKEND_URL}/api/chats/${id}/threads`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
@@ -319,7 +322,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
         try {
             const token = localStorage.getItem('auth_token');
             if (token) {
-                const res = await fetch(`/api/chats/${id}/visualize-threads`, {
+                const res = await fetch(`${BACKEND_URL}/api/chats/${id}/visualize-threads`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
@@ -370,7 +373,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
         try {
             const token = localStorage.getItem('auth_token');
             if (token) {
-                const res = await fetch(`/api/chats/${id}/visualize-threads`, {
+                const res = await fetch(`${BACKEND_URL}/api/chats/${id}/visualize-threads`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 if (res.ok) {
@@ -548,7 +551,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                         try {
                                             const token = localStorage.getItem('auth_token');
                                             if (token) {
-                                                const res = await fetch(`/api/chats/${id}/threads`, {
+                                                const res = await fetch(`${BACKEND_URL}/api/chats/${id}/threads`, {
                                                     headers: { 'Authorization': `Bearer ${token}` }
                                                 });
                                                 if (res.ok) {
