@@ -30,6 +30,13 @@ import json
 # ── App definition ─────────────────────────────────────────────────────────────
 app = modal.App("piab-inference")
 
+# ── Model weight cache volume ──────────────────────────────────────────────────
+# Persists HuggingFace downloads across cold starts — no re-downloading on restart.
+# First cold start: downloads models (~15-20 min). All subsequent cold starts: loads
+# from volume (~60-90s instead of re-downloading).
+model_volume = modal.Volume.from_name("piab-model-weights", create_if_missing=True)
+MODEL_CACHE_DIR = "/model-cache"
+
 # ── Container image ────────────────────────────────────────────────────────────
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -45,6 +52,8 @@ image = (
         "protobuf>=3.20.0",
     ])
     .pip_install(["torch==2.3.0"], extra_index_url="https://download.pytorch.org/whl/cu118")
+    # Point HuggingFace to the volume so weights are cached across cold starts
+    .env({"HF_HOME": MODEL_CACHE_DIR, "TRANSFORMERS_CACHE": MODEL_CACHE_DIR})
 )
 
 # ── Model configuration ────────────────────────────────────────────────────────
@@ -62,37 +71,42 @@ MODEL_CONFIG = {
 }
 
 # Default model loaded eagerly at cold start — must match what the demo uses most.
-# Mistral is loaded lazily on first request to cut cold start time roughly in half.
 EAGER_MODEL = "deepseek"
 
 
 @app.cls(
-    gpu="T4",
+    # A10G has 24GB VRAM vs T4's 16GB — ~2-3x faster inference for 7B models
+    gpu="A10G",
     memory=65536,
     image=image,
     timeout=600,
-    # Keep container alive 5 minutes after last request — prevents cold starts
-    # during demo pauses. No extra charge during idle; GPU is idle too.
-    scaledown_window=300,
+    # Cache model weights on the volume across cold starts
+    volumes={MODEL_CACHE_DIR: model_volume},
+    # Keep container alive 10 minutes after last request (up from 5 min)
+    scaledown_window=600,
     startup_timeout=1200,
+    # Memory snapshot: after first cold start loads models, Modal snapshots
+    # container memory — subsequent cold starts restore from snapshot (~10s)
+    enable_memory_snapshot=True,
 )
 class InferenceServer:
 
-    @modal.enter()
+    @modal.enter(snap=True)
     def load_models(self):
         """
         Runs once per container lifetime (cold start).
-        Only loads the eager model (DeepSeek) to cut startup time in half.
-        Mistral is loaded on first request that asks for it.
-        Cold start: ~60-90s. Warm requests: ~5-15s.
+        snap=True means Modal snapshots memory after this completes —
+        subsequent cold starts skip re-loading and restore from snapshot.
+        Cold start (first ever): ~60-90s. Warm requests: ~5-15s.
+        Snapshot restores: ~10s.
         """
         import torch
         self.loaded = {}
         self._load_one(EAGER_MODEL)
-        print(f"[INFO] Cold start complete. {EAGER_MODEL} ready. Container will stay warm for 5 min after each request.")
+        print(f"[INFO] Cold start complete. {EAGER_MODEL} ready.")
 
     def _load_one(self, name: str):
-        """Load a single model into GPU memory (idempotent)."""
+        """Load a single model into GPU memory (idempotent). Reads from volume cache."""
         if name in self.loaded:
             return
         from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
@@ -100,7 +114,7 @@ class InferenceServer:
         from huggingface_hub import hf_hub_download
         import torch, json as _json
 
-        _ROUTING_KEYS   = {"peft_type", "auto_mapping", "base_model_name_or_path", "revision"}
+        _ROUTING_KEYS     = {"peft_type", "auto_mapping", "base_model_name_or_path", "revision"}
         _NONSTANDARD_KEYS = {"alora_invocation_tokens"}
 
         cfg = MODEL_CONFIG[name]
@@ -135,7 +149,6 @@ class InferenceServer:
     def ask(self, item: dict):
         """
         Batch inference — waits for full generation, returns JSON.
-        Use this for structured JSON responses (learning paths, quizzes, etc.).
         POST {"question": "...", "model": "deepseek" | "mistral"}
         """
         import torch
@@ -175,7 +188,6 @@ class InferenceServer:
     def ask_stream(self, item: dict):
         """
         Streaming inference — yields tokens via SSE as they are generated.
-        Use this for the chat/doubt UI so the user sees output immediately.
         POST {"question": "...", "model": "deepseek" | "mistral"}
         SSE format:  data: {"token": "..."}\n\n  ...  data: [DONE]\n\n
         """
@@ -214,7 +226,6 @@ class InferenceServer:
             streamer=streamer,
         )
 
-        # Run generation in a background thread so we can yield from the streamer
         thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
         thread.start()
 
