@@ -82,11 +82,12 @@ EAGER_MODEL = "deepseek"
     timeout=600,
     # Cache model weights on the volume across cold starts
     volumes={MODEL_CACHE_DIR: model_volume},
-    # Keep container alive 10 minutes after last request (up from 5 min)
+    # Keep container alive 10 minutes after last request
     scaledown_window=600,
     startup_timeout=1200,
-    # Memory snapshot: after first cold start loads models, Modal snapshots
-    # container memory — subsequent cold starts restore from snapshot (~10s)
+    # Always keep 1 container warm — eliminates cold starts entirely for demo
+    # A10G costs ~$0.19/hr idle; with $22 balance that's 100+ hours of warm serving
+    min_containers=1,
     # enable_memory_snapshot=True,  # re-enable after volume is pre-populated
 )
 class InferenceServer:
