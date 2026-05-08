@@ -281,6 +281,34 @@ class InferenceServer:
         }
 
 
+# ── Config endpoint (CPU-only, instant) ───────────────────────────────────────
+# Serves API keys stored as Modal secrets so the Render backend never needs
+# keys in environment variables or source code.
+#
+# Setup (run once):
+#   modal secret create piab-api-keys \
+#     GEMINI_API_KEY="AIza..." \
+#     OPENAI_API_KEY="sk-proj-..."
+#
+# The Render backend calls GET /config at startup to retrieve these keys.
+_config_image = modal.Image.debian_slim(python_version="3.11").pip_install(["fastapi>=0.111.0"])
+
+@app.function(
+    image=_config_image,
+    scaledown_window=300,
+)
+@modal.fastapi_endpoint(method="GET")
+def config():
+    import os
+    # Keys populated via: modal secret create piab-api-keys GEMINI_API_KEY=... OPENAI_API_KEY=...
+    # Then attach to this function by adding: secrets=[modal.Secret.from_name("piab-api-keys")]
+    return {
+        "GEMINI_API_KEY":   os.environ.get("GEMINI_API_KEY", ""),
+        "OPENAI_API_KEY":   os.environ.get("OPENAI_API_KEY", ""),
+        "DEEPSEEK_API_KEY": os.environ.get("DEEPSEEK_API_KEY", ""),
+    }
+
+
 # ── Local test entry point ─────────────────────────────────────────────────────
 @app.local_entrypoint()
 def main():

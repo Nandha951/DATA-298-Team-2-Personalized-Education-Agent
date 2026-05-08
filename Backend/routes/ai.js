@@ -4,41 +4,51 @@ const OpenAI = require('openai');
 
 const router = express.Router();
 
-const GEMINI_API_KEY   = process.env.VITE_GEMINI_API_KEY;
-const OPENAI_API_KEY   = process.env.VITE_OPENAI_API_KEY;
-const DEEPSEEK_API_KEY = process.env.VITE_DEEPSEEK_API_KEY;
-
 // ── Finetuned model server URLs ────────────────────────────────────────────────
-//
-// Set these in .env after running: modal deploy modal_server.py
-// Modal prints the URLs on deploy. They look like:
-//   https://<workspace>--piab-inference-inferenceserver-ask.modal.run
-//   https://<workspace>--piab-inference-inferenceserver-ask-stream.modal.run
-//
-// FINETUNED_ASK_URL    — batch endpoint (returns full JSON when done)
-// FINETUNED_STREAM_URL — SSE streaming endpoint (tokens appear as generated)
-//
-// Fallbacks point to the local FastAPI server (server.py on port 8001).
 const FINETUNED_ASK_URL    = process.env.FINETUNED_ASK_URL    || 'http://localhost:8001/ask';
 const FINETUNED_STREAM_URL = process.env.FINETUNED_STREAM_URL || 'http://localhost:8001/ask-stream';
 const FINETUNED_HEALTH_URL = process.env.FINETUNED_HEALTH_URL || null;
-
-// How long to wait before falling back to DeepSeek API.
-// DeepSeek R1 reasoning traces can run 60-90s — 120s gives it room.
+const FINETUNED_CONFIG_URL = process.env.FINETUNED_CONFIG_URL || null;
 const FINETUNED_TIMEOUT_MS = parseInt(process.env.FINETUNED_TIMEOUT_MS || '120000', 10);
-
-// ── API provider clients ───────────────────────────────────────────────────────
-const geminiClient = new GoogleGenerativeAI(GEMINI_API_KEY);
-const geminiModel  = geminiClient.getGenerativeModel({
-    model: 'gemini-2.0-flash',
-    generationConfig: { responseMimeType: 'application/json' },
-});
-
-const openaiClient   = OPENAI_API_KEY   ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
-const deepseekClient = DEEPSEEK_API_KEY ? new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: DEEPSEEK_API_KEY }) : null;
 
 const OPENAI_MODEL   = process.env.VITE_OPENAI_MODEL   || 'gpt-4o-mini';
 const DEEPSEEK_MODEL = process.env.VITE_DEEPSEEK_MODEL || 'deepseek-chat';
+
+// ── API keys — loaded from env, then topped-up from Modal /config if available ─
+let _keys = {
+    gemini:   process.env.VITE_GEMINI_API_KEY   || '',
+    openai:   process.env.VITE_OPENAI_API_KEY   || '',
+    deepseek: process.env.VITE_DEEPSEEK_API_KEY || '',
+};
+
+// Fetch fresh keys from Modal secret store (non-blocking, best-effort)
+const refreshKeys = async () => {
+    if (!FINETUNED_CONFIG_URL) return;
+    try {
+        const res = await fetch(FINETUNED_CONFIG_URL, { signal: AbortSignal.timeout(8000) });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.GEMINI_API_KEY)  _keys.gemini   = data.GEMINI_API_KEY;
+        if (data.OPENAI_API_KEY)  _keys.openai   = data.OPENAI_API_KEY;
+        if (data.DEEPSEEK_API_KEY) _keys.deepseek = data.DEEPSEEK_API_KEY;
+        console.log('[AI] Keys refreshed from Modal config. gemini=' + !!_keys.gemini + ' openai=' + !!_keys.openai);
+    } catch (e) {
+        console.warn('[AI] Could not fetch Modal config:', e.message);
+    }
+};
+
+// Refresh at startup and every 10 min (keys rotate without redeploy)
+refreshKeys();
+setInterval(refreshKeys, 10 * 60 * 1000);
+
+// Lazy client getters — always use latest key
+const getGeminiClient = () => new GoogleGenerativeAI(_keys.gemini);
+const getOpenAIClient = () => _keys.openai ? new OpenAI({ apiKey: _keys.openai }) : null;
+const getDeepSeekClient = () => _keys.deepseek ? new OpenAI({ baseURL: 'https://api.deepseek.com', apiKey: _keys.deepseek }) : null;
+const getGeminiJsonModel = () => getGeminiClient().getGenerativeModel({
+    model: 'gemini-2.0-flash',
+    generationConfig: { responseMimeType: 'application/json' },
+});
 
 const cleanResponse = (text) => text.replace(/```json/g, '').replace(/```/g, '').trim();
 
@@ -149,8 +159,8 @@ const fallbackToDeepSeekStream = async (prompt, res) => {
 // ── Call one provider for batch JSON (throws on error) ────────────────────────
 const callProvider = async (provider, prompt) => {
     if (provider === 'openai') {
-        if (!openaiClient) throw new Error('OpenAI API Key not configured');
-        const c = await openaiClient.chat.completions.create({
+        if (!getOpenAIClient()) throw new Error('OpenAI API Key not configured');
+        const c = await getOpenAIClient().chat.completions.create({
             messages: [
                 { role: 'system', content: 'You are a helpful educational assistant. Output strictly valid JSON.' },
                 { role: 'user',   content: prompt },
@@ -161,8 +171,8 @@ const callProvider = async (provider, prompt) => {
         return JSON.parse(cleanResponse(c.choices[0].message.content));
 
     } else if (provider === 'deepseek') {
-        if (!deepseekClient) throw new Error('DeepSeek API Key not configured');
-        const c = await deepseekClient.chat.completions.create({
+        if (!getDeepSeekClient()) throw new Error('DeepSeek API Key not configured');
+        const c = await getDeepSeekClient().chat.completions.create({
             messages: [
                 { role: 'system', content: 'You are a helpful educational assistant. Output strictly valid JSON.' },
                 { role: 'user',   content: prompt },
@@ -186,7 +196,7 @@ const callProvider = async (provider, prompt) => {
 
     } else {
         // Gemini
-        const result = await geminiModel.generateContent(prompt);
+        const result = await getGeminiJsonModel().generateContent(prompt);
         return JSON.parse(cleanResponse((await result.response).text()));
     }
 };
@@ -325,7 +335,7 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
     openChunkedStream(res);
 
     const geminiStream = async () => {
-        const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+        const m = getGeminiClient().getGenerativeModel({ model: 'gemini-2.0-flash' });
         const r = await m.generateContentStream(prompt);
         for await (const chunk of r.stream) res.write(chunk.text());
     };
@@ -333,8 +343,8 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
     try {
         if (provider === 'openai') {
             try {
-                if (!openaiClient) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
-                const stream = await openaiClient.chat.completions.create({
+                if (!getOpenAIClient()) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
+                const stream = await getOpenAIClient().chat.completions.create({
                     model: OPENAI_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
                 });
                 for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
@@ -345,8 +355,8 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
 
         } else if (provider === 'deepseek') {
             try {
-                if (!deepseekClient) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
-                const stream = await deepseekClient.chat.completions.create({
+                if (!getDeepSeekClient()) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
+                const stream = await getDeepSeekClient().chat.completions.create({
                     model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: prompt }], stream: true,
                 });
                 for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
@@ -410,7 +420,7 @@ DO NOT wrap in JSON or code fences.
             } catch (err) {
                 if (isQuotaError(err)) {
                     console.warn(`[stream-rag] ${provider} unavailable (${err.message?.slice(0,60)}), falling back to Gemini`);
-                    const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+                    const m = getGeminiClient().getGenerativeModel({ model: 'gemini-2.0-flash' });
                     const r = await m.generateContentStream(fullPrompt);
                     for await (const chunk of r.stream) res.write(chunk.text());
                 } else {
@@ -421,8 +431,8 @@ DO NOT wrap in JSON or code fences.
 
         if (provider === 'openai') {
             await streamWithGeminiFallback(async () => {
-                if (!openaiClient) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
-                const stream = await openaiClient.chat.completions.create({
+                if (!getOpenAIClient()) throw Object.assign(new Error('OpenAI not configured'), { status: 401 });
+                const stream = await getOpenAIClient().chat.completions.create({
                     model: OPENAI_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
                 });
                 for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
@@ -430,8 +440,8 @@ DO NOT wrap in JSON or code fences.
 
         } else if (provider === 'deepseek') {
             await streamWithGeminiFallback(async () => {
-                if (!deepseekClient) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
-                const stream = await deepseekClient.chat.completions.create({
+                if (!getDeepSeekClient()) throw Object.assign(new Error('DeepSeek not configured'), { status: 402 });
+                const stream = await getDeepSeekClient().chat.completions.create({
                     model: DEEPSEEK_MODEL, messages: [{ role: 'user', content: fullPrompt }], stream: true,
                 });
                 for await (const chunk of stream) res.write(chunk.choices[0]?.delta?.content || '');
@@ -450,7 +460,7 @@ DO NOT wrap in JSON or code fences.
 
         } else {
             // gemini
-            const m = geminiClient.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            const m = getGeminiClient().getGenerativeModel({ model: 'gemini-2.0-flash' });
             const r = await m.generateContentStream(fullPrompt);
             for await (const chunk of r.stream) res.write(chunk.text());
         }
