@@ -100,7 +100,7 @@ export default function ConceptGapMap({ graphData }) {
 
             <div style={{ 
                 height: '500px', 
-                background: 'white', 
+                background: 'var(--surface-color)', 
                 borderRadius: '16px', 
                 border: '1px solid var(--border-color)', 
                 boxShadow: '0 4px 6px rgba(0,0,0,0.05)',
@@ -115,7 +115,7 @@ export default function ConceptGapMap({ graphData }) {
                     fitView
                     attributionPosition="bottom-right"
                 >
-                    <Background color="#f1f5f9" gap={16} />
+                    <Background color="var(--text-muted)" gap={16} />
                     <Controls />
                 </ReactFlow>
             </div>
@@ -183,7 +183,7 @@ export default function ConceptGapMap({ graphData }) {
                         </button>
                     </div>
                     
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', minHeight: '80px' }}>
+                    <div style={{ background: 'var(--surface-color)', padding: '20px', borderRadius: '12px', border: '1px solid var(--border-color)', minHeight: '80px' }}>
                         {rca ? (
                             <>
                                 <div style={{ color: 'var(--text-main)', marginBottom: '15px', fontWeight: '500', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: rca.insight }}></div>
