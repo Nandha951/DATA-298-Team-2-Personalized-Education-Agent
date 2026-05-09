@@ -122,16 +122,15 @@ function DoubtChat({ milestoneId }) {
                         msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: displayContent };
                         return msgs;
                     });
-
-                    const unspoken = displayContent.slice(displayContent.length - step.length);
-                    const match = unspoken.match(/^.*?[.!?]+(?=\s|$)/);
-                    if (match) speak(match[0], null, false);
                 }
 
                 await new Promise(r => setTimeout(r, 15));
             }
 
-            if (!currentAbort.signal.aborted) saveMessage('ai', displayContent);
+            if (!currentAbort.signal.aborted) {
+                saveMessage('ai', displayContent);
+                speak(displayContent, null, true);
+            }
 
         } catch (err) {
             console.error('DoubtChat error:', err);
