@@ -159,7 +159,6 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         
         window.speechSynthesis.speak(utterance);
     }, []);
-    }, []);
 
     return {
         isListening,
