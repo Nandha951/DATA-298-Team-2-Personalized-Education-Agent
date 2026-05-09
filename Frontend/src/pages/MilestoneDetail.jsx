@@ -44,7 +44,7 @@ function MilestoneDetail() {
         }
     };
 
-    const { isListening: isListeningModal, startListening: startListeningModal, stopListening: stopListeningModal } = useVoiceAssistant((transcript, isFinal) => {
+    const { isListening: isListeningModal, isSpeaking: isSpeakingModal, startListening: startListeningModal, stopListening: stopListeningModal } = useVoiceAssistant((transcript, isFinal) => {
         if (isFinal) {
             setActionInput(preVoiceInputRef.current + (preVoiceInputRef.current ? ' ' : '') + transcript);
             stopListeningModal();
@@ -725,7 +725,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                             <div style={{ marginBottom: '24px', display: 'flex', flexDirection: 'column', gap: '20px', flex: 1 }}>
                                                 {actionState.chatHistory.map((msg, i) => (
                                                     <div key={i} style={{
-                                                        background: msg.role === 'ai' ? 'white' : 'var(--primary-light)',
+                                                        background: msg.role === 'ai' ? 'var(--bg-color)' : 'var(--primary-light)',
                                                         padding: '20px',
                                                         borderRadius: '12px',
                                                         border: msg.role === 'ai' ? '1px solid var(--border-color)' : 'none',
@@ -755,7 +755,9 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                             <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
                                                 <button
                                                     onClick={() => {
-                                                        if (isListeningModal) {
+                                                        if (isSpeakingModal) {
+                                                            window.speechSynthesis.cancel();
+                                                        } else if (isListeningModal) {
                                                             stopListeningModal();
                                                         } else {
                                                             preVoiceInputRef.current = actionInput.trim();
@@ -764,8 +766,8 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                     }}
                                                     style={{
                                                         padding: '12px',
-                                                        background: isListeningModal ? '#ef4444' : 'var(--surface-color)',
-                                                        color: isListeningModal ? 'white' : 'var(--text-main)',
+                                                        background: (isListeningModal || isSpeakingModal) ? '#ef4444' : 'var(--surface-color)',
+                                                        color: (isListeningModal || isSpeakingModal) ? 'white' : 'var(--text-main)',
                                                         border: '1px solid var(--border-color)',
                                                         borderRadius: '8px',
                                                         cursor: 'pointer',
@@ -776,9 +778,9 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                                                         transition: 'all 0.2s',
                                                         flexShrink: 0
                                                     }}
-                                                    title={isListeningModal ? "Stop Listening" : "Voice Input"}
+                                                    title={isSpeakingModal ? "Stop Reading" : isListeningModal ? "Stop Listening" : "Voice Input"}
                                                 >
-                                                    {isListeningModal ? '🛑' : '🎤'}
+                                                    {isSpeakingModal ? '🔇' : isListeningModal ? '🛑' : '🎤'}
                                                 </button>
                                                 <textarea
                                                     value={actionInput}

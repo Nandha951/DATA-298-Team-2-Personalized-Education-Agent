@@ -224,7 +224,7 @@ function DoubtChat({ milestoneId }) {
                     </button>
                     <button
                         onClick={(isListening || isSpeaking) ? handleStopAll : startListening}
-                        title="Voice input"
+                        title={isSpeaking ? "Stop Reading" : isListening ? "Stop Listening" : "Voice Input"}
                         style={{
                             padding: '8px 12px', borderRadius: '8px', border: 'none',
                             background: (isListening || isSpeaking) ? '#ef4444' : 'var(--surface-color)',
@@ -233,7 +233,7 @@ function DoubtChat({ milestoneId }) {
                             cursor: 'pointer', fontSize: '1rem'
                         }}
                     >
-                        {isListening ? '🛑' : '🎙️'}
+                        {isSpeaking ? '🔇' : isListening ? '🛑' : '🎙️'}
                     </button>
                 </div>
             </div>

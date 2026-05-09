@@ -57,7 +57,7 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
 
         recognitionRef.current.onend = () => {
             setIsListening(false);
-            if (shouldListenRef.current && autoRestart) {
+            if (shouldListenRef.current && autoRestart && !window.speechSynthesis.speaking) {
                 try {
                     recognitionRef.current.start();
                 } catch (e) {
@@ -105,6 +105,11 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         if (clearQueue) {
             window.speechSynthesis.cancel(); // Cancel any ongoing speech
         }
+
+        // Temporarily stop the microphone so the AI doesn't hear its own voice!
+        if (recognitionRef.current) {
+            try { recognitionRef.current.stop(); } catch(e) {}
+        }
         
         const plainText = text.replace(/<[^>]+>/g, '').replace(/[*_#`]/g, ''); // Strip markdown
         if (!plainText.trim()) return; // Don't speak empty sentences
@@ -122,6 +127,11 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         utterance.onend = () => {
             setIsSpeaking(false);
             if (onEndCallback) onEndCallback();
+            
+            // Resume listening automatically after speaking if it was active
+            if (shouldListenRef.current && autoRestart) {
+                try { recognitionRef.current.start(); } catch(e) {}
+            }
         };
         utterance.onerror = () => setIsSpeaking(false);
         
