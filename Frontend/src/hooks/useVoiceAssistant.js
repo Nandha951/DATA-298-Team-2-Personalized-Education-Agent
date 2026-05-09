@@ -6,6 +6,7 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
     const [error, setError] = useState(null);
     const recognitionRef = useRef(null);
     const shouldListenRef = useRef(false);
+    const isSpeakingRef = useRef(false);
     const onResultRef = useRef(onResult);
 
     // Keep the latest callback without triggering effect restarts
@@ -30,6 +31,8 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         };
 
         recognitionRef.current.onresult = (event) => {
+            if (isSpeakingRef.current) return; // Ignore input if AI is speaking
+
             // The moment we detect audio input, stop the AI from talking
             window.speechSynthesis.cancel();
             
@@ -52,12 +55,16 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
 
         recognitionRef.current.onerror = (event) => {
             console.error('Speech recognition error', event.error);
+            if (event.error === 'not-allowed' || event.error === 'audio-capture') {
+                shouldListenRef.current = false;
+                setError('Microphone access denied or not found.');
+            }
             setIsListening(false);
         };
 
         recognitionRef.current.onend = () => {
             setIsListening(false);
-            if (shouldListenRef.current && autoRestart && !window.speechSynthesis.speaking) {
+            if (shouldListenRef.current && autoRestart && !isSpeakingRef.current) {
                 try {
                     recognitionRef.current.start();
                 } catch (e) {
@@ -78,11 +85,12 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         shouldListenRef.current = true;
         if (recognitionRef.current && !isListening) {
             window.speechSynthesis.cancel(); // Stop AI from talking if user speaks
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
             
             // Resume/unlock AudioContext for TTS if needed
             if (window.speechSynthesis.resume) window.speechSynthesis.resume();
             
-            setIsSpeaking(false);
             try {
                 recognitionRef.current.start();
             } catch (e) {
@@ -106,13 +114,20 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
             window.speechSynthesis.cancel(); // Cancel any ongoing speech
         }
 
+        isSpeakingRef.current = true;
+        setIsSpeaking(true);
+
         // Temporarily stop the microphone so the AI doesn't hear its own voice!
         if (recognitionRef.current) {
             try { recognitionRef.current.stop(); } catch(e) {}
         }
         
         const plainText = text.replace(/<[^>]+>/g, '').replace(/[*_#`]/g, ''); // Strip markdown
-        if (!plainText.trim()) return; // Don't speak empty sentences
+        if (!plainText.trim()) {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+            return; // Don't speak empty sentences
+        }
         const utterance = new SpeechSynthesisUtterance(plainText);
         
         // Try to find a good female English voice for tutor vibe
@@ -123,8 +138,12 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
         
-        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onstart = () => {
+            isSpeakingRef.current = true;
+            setIsSpeaking(true);
+        };
         utterance.onend = () => {
+            isSpeakingRef.current = false;
             setIsSpeaking(false);
             if (onEndCallback) onEndCallback();
             
@@ -133,9 +152,13 @@ export function useVoiceAssistant(onResult, autoRestart = true) {
                 try { recognitionRef.current.start(); } catch(e) {}
             }
         };
-        utterance.onerror = () => setIsSpeaking(false);
+        utterance.onerror = () => {
+            isSpeakingRef.current = false;
+            setIsSpeaking(false);
+        };
         
         window.speechSynthesis.speak(utterance);
+    }, []);
     }, []);
 
     return {
