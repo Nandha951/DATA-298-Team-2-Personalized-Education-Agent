@@ -161,11 +161,6 @@ function DoubtChat({ milestoneId }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '8px' }}>
-            {/* Provider badge */}
-            <div style={{ fontSize: '0.75rem', color: isFinetuned ? '#7c3aed' : 'var(--text-muted)', fontWeight: '600', textAlign: 'center' }}>
-                {isFinetuned ? `🤖 ${provider === 'finetuned-deepseek' ? 'DeepSeek R1 7B' : 'Mistral 7B'} (finetuned · ~30s)` : `⚡ ${provider}`}
-            </div>
-
             {/* Message history */}
             <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', paddingRight: '4px', minHeight: '80px', maxHeight: '240px' }}>
                 {messages.length === 0 && (
