@@ -298,7 +298,7 @@ router.post('/generate', asyncRoute(async (req, res) => {
 
 // ── POST /api/ai/ask-rag ───────────────────────────────────────────────────────
 router.post('/ask-rag', requireAuth, asyncRoute(async (req, res) => {
-    const { provider, question } = req.body;
+    const { provider, question, milestoneContext } = req.body;
     if (!question) return res.status(400).json({ error: 'Missing question' });
 
     // ask-rag returns JSON — finetuned models can't produce it, fall back to openai
@@ -311,10 +311,12 @@ Student Question: "${question}"
 
 You are an expert personalized tutor with access to the student's uploaded learning materials.
 
+${milestoneContext ? `CURRENT LESSON CONTEXT (The student is currently looking at this):\n"""\n${milestoneContext}\n"""` : ''}
+
 PAST KNOWLEDGE / DOCUMENT CONTEXT:
 ${context ? `"""\n${context}\n"""` : 'No specific context found. Rely on general AI knowledge.'}
 
-INSTRUCTION: Answer accurately. Prioritize the PAST KNOWLEDGE context with direct citations where relevant.
+INSTRUCTION: Answer accurately. Prioritize the PAST KNOWLEDGE context and the CURRENT LESSON CONTEXT where relevant.
 Return a JSON object with key "answer" containing your markdown response.
 `;
 
