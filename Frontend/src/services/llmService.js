@@ -103,10 +103,10 @@ export const llmService = {
         return generateFromBackend(prompt);
     },
 
-    async getDoubtAnswer(question) {
+    async getDoubtAnswer(question, milestoneContext = "") {
         if (!BACKEND) {
             const result = await geminiJsonModel().generateContent(
-                `You are an expert CS tutor. Answer this question concisely in markdown.\nReturn as JSON: {"answer": "...markdown..."}\nQuestion: ${question}`
+                `You are an expert CS tutor. Answer this question concisely in markdown.\nReturn as JSON: {"answer": "...markdown..."}\n${milestoneContext ? `Context: ${milestoneContext}\n` : ''}Question: ${question}`
             );
             return JSON.parse(cleanText(result.response.text()));
         }
@@ -114,17 +114,17 @@ export const llmService = {
         const response = await fetch(`${BACKEND}/api/ai/ask-rag`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ provider: currentProvider, question })
+            body: JSON.stringify({ provider: currentProvider, question, milestoneContext })
         });
         if (!response.ok) throw new Error(`RAG Query Error: ${await response.text()}`);
         return response.json();
     },
 
-    async *streamDoubtAnswer(question) {
+    async *streamDoubtAnswer(question, milestoneContext = "") {
         if (!BACKEND) {
             const model = geminiStreamModel();
             const result = await model.generateContentStream(
-                `You are an expert CS tutor. Answer in clear markdown. Question: ${question}`
+                `You are an expert CS tutor. Answer in clear markdown.\n${milestoneContext ? `Context: ${milestoneContext}\n` : ''}Question: ${question}`
             );
             for await (const chunk of result.stream) yield chunk.text();
             return;
@@ -133,7 +133,7 @@ export const llmService = {
         const response = await fetch(`${BACKEND}/api/ai/stream-rag`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ provider: currentProvider, question })
+            body: JSON.stringify({ provider: currentProvider, question, milestoneContext })
         });
         if (!response.ok) throw new Error('Stream request failed');
         const reader = response.body.getReader();

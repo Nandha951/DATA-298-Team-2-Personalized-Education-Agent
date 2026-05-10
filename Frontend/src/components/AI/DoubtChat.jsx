@@ -5,7 +5,7 @@ import { llmService } from '../../services/llmService';
 import { useVoiceAssistant } from '../../hooks/useVoiceAssistant';
 import { BACKEND_URL } from '../../services/config';
 
-function DoubtChat({ milestoneId }) {
+function DoubtChat({ milestoneId, milestoneContext }) {
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
@@ -97,7 +97,7 @@ function DoubtChat({ milestoneId }) {
         }
 
         try {
-            const stream = llmService.streamDoubtAnswer(currentInput);
+            const stream = llmService.streamDoubtAnswer(currentInput, milestoneContext);
 
             (async () => {
                 try {

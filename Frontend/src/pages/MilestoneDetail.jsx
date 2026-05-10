@@ -18,6 +18,9 @@ function MilestoneDetail() {
     const [milestone, setMilestone] = useState(null);
     const [loading, setLoading] = useState(true);
     const [generatingContent, setGeneratingContent] = useState(false);
+    const [conceptFeedback, setConceptFeedback] = useState(null);
+
+    const currentContextStr = milestone ? `Milestone Title: ${milestone.title}\nTopics: ${milestone.topics?.join(', ')}\nLesson Content Snippet: ${milestone.detailedContent ? milestone.detailedContent.substring(0, 2000) : 'No content'}` : "";
 
     const [selection, setSelection] = useState({ text: '', x: 0, y: 0 });
     const [actionState, setActionState] = useState({ type: null, loading: false, result: '', chatHistory: [], error: '', threads: {}, activeThreadId: null }); 
@@ -253,7 +256,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
 
             const syntheticPrompt = `Regarding this exact snippet: "${selection.text}"\n\nStudent asks: ${questionText}`;
 
-            const stream = llmService.streamDoubtAnswer(syntheticPrompt);
+            const stream = llmService.streamDoubtAnswer(syntheticPrompt, currentContextStr);
 
             (async () => {
                 try {
@@ -849,7 +852,7 @@ Output ONLY raw markdown of the final NEW replacement text. Do not wrap in quote
                     <div style={{ padding: '20px', background: 'var(--glass-bg)', backdropFilter: 'blur(12px)', borderRadius: '16px', border: '1px solid var(--glass-border)', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', display: 'flex', flexDirection: 'column', flex: 1, minHeight: '300px' }}>
                         <h3 style={{ fontSize: '1.2rem', marginBottom: '16px', borderBottom: '2px solid var(--border-color)', paddingBottom: '8px', flexShrink: 0 }}>Need Help?</h3>
                         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-                            <DoubtChat milestoneId={id} />
+                            <DoubtChat milestoneId={id} milestoneContext={currentContextStr} />
                         </div>
                     </div>
                 </div>

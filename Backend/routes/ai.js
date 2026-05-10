@@ -395,7 +395,7 @@ router.post('/stream-generate', asyncRoute(async (req, res) => {
 
 // ── POST /api/ai/stream-rag ────────────────────────────────────────────────────
 router.post('/stream-rag', requireAuth, asyncRoute(async (req, res) => {
-    const { provider, question } = req.body;
+    const { provider, question, milestoneContext } = req.body;
     if (!question) return res.status(400).end();
 
     console.log(`[stream-rag] user=${req.user.userId} provider=${provider}`);
@@ -415,10 +415,12 @@ Student Question: "${question}"
 
 You are an expert personalized tutor with access to the student's uploaded learning materials.
 
+${milestoneContext ? `CURRENT LESSON CONTEXT (The student is currently looking at this):\n"""\n${milestoneContext}\n"""` : ''}
+
 PAST KNOWLEDGE / DOCUMENT CONTEXT:
 ${context ? `"""\n${context}\n"""` : 'No specific context found. Rely on general AI knowledge.'}
 
-INSTRUCTION: Answer accurately in markdown. Prioritize the PAST KNOWLEDGE context with direct citations where relevant.
+INSTRUCTION: Answer accurately in markdown. Prioritize the PAST KNOWLEDGE context and the CURRENT LESSON CONTEXT where relevant.
 DO NOT wrap in JSON or code fences.
 `;
 
