@@ -458,9 +458,11 @@ DO NOT wrap in JSON or code fences.
             });
 
         } else if (isFinetuned(provider)) {
-            const ragQuestion = context
-                ? `Context from my notes:\n${context}\n\nQuestion: ${question}`
-                : question;
+            const ragQuestion = `
+${milestoneContext ? `CURRENT LESSON CONTEXT:\n${milestoneContext}\n\n` : ''}
+${context ? `Context from my notes:\n${context}\n\n` : ''}
+Question: ${question}
+`.trim();
             try {
                 await pipeFinetunedStream(ftModelName(provider), ragQuestion, res);
             } catch (err) {
